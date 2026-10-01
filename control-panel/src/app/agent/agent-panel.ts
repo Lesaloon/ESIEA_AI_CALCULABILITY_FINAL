@@ -15,7 +15,7 @@ import { SimulationGrid } from '../simulation-grid';
 export class AgentPanel {
   readonly sim = inject(SimulationStore);
   readonly env = inject(EnvironmentStore);
-  readonly algorithm = signal('example');
+  readonly algorithm = signal('bfs');
   readonly heuristic = signal('l1');
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);

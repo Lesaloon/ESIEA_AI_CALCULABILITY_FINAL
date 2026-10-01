@@ -1,11 +1,14 @@
-"""Add an Algorithm entry to expose a student implementation in the UI."""
+"""Selectable pathfinding algorithms."""
 
 from dataclasses import dataclass
 from typing import Callable
+
 from agent.algorithms.explorer import Explorer
-from agent.algorithms.algo_template import AlgoPolicy
+from agent.planners.astar import AStarPlanner
 from agent.planners.breadth_first import BreadthFirstPlanner
-from agent.planners.template import AStarPlanner, DijkstraPlanner
+from agent.planners.depth_first import DepthFirstPlanner
+from agent.planners.dijkstra import DijkstraPlanner
+from agent.planners.greedy import GreedyBestFirstPlanner
 
 
 @dataclass(frozen=True)
@@ -17,13 +20,24 @@ class Algorithm:
 
 
 ALGORITHMS = {
-    'example': Algorithm('Example explorer · breadth-first',
-                         'Shortest-hop planning on discovered cells; ignores weights.',
-                         lambda config: Explorer(BreadthFirstPlanner())),
-    'dijkstra': Algorithm('Dijkstra', 'Weighted shortest-path planning.',
-                          lambda config: Explorer(DijkstraPlanner())),
-    'astar': Algorithm('A*', 'Heuristic weighted shortest-path planning.',
-                       lambda config: Explorer(AStarPlanner(config.heuristic))),
-    'template': Algorithm('Algo policy', 'Implement a complete local-observation policy.',
-                         lambda config: AlgoPolicy(), enabled=False),
+    'bfs': Algorithm(
+        'BFS',
+        'Breadth-first search: fewest steps, ignores edge weights.',
+        lambda config: Explorer(BreadthFirstPlanner())),
+    'dfs': Algorithm(
+        'DFS',
+        'Depth-first search: follows one branch before backtracking, ignores edge weights.',
+        lambda config: Explorer(DepthFirstPlanner())),
+    'greedy': Algorithm(
+        'Greedy best-first',
+        'Expands the discovered cell closest to the target according to the selected heuristic.',
+        lambda config: Explorer(GreedyBestFirstPlanner(config.heuristic))),
+    'dijkstra': Algorithm(
+        'Dijkstra',
+        'Weighted shortest path. The selected heuristic is not used.',
+        lambda config: Explorer(DijkstraPlanner())),
+    'astar': Algorithm(
+        'A*',
+        'Weighted shortest path guided by the selected heuristic.',
+        lambda config: Explorer(AStarPlanner(config.heuristic))),
 }

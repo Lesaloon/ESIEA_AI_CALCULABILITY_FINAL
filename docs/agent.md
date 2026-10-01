@@ -68,8 +68,8 @@ choice and never changes what the algorithm receives.
 
 ## Exercise 1: Dijkstra or A*
 
-Implement `DijkstraPlanner.plan` or `AStarPlanner.plan` in
-`agent/planners/template.py`. The contract is:
+Implement `DijkstraPlanner.plan` in `agent/planners/dijkstra.py` or
+`AStarPlanner.plan` in `agent/planners/astar.py`. The contract is:
 
 ```python
 def plan(self, graph: DiscoveredGraphView,
@@ -82,10 +82,9 @@ when there is no known route. Start equal to target should return `[start]`.
 Use the actual directional costs in `graph.edges`. A successful planner does
 not mutate the supplied graph.
 
-Enable the matching entry in `agent/registry.py` by changing `enabled=False`
-to `enabled=True`. Restart/rebuild the agent and refresh the browser. The
-algorithm becomes selectable. Keep factory creation per run so private state
-does not leak between runs.
+The planners are registered in `agent/registry.py`. Restart the agent and
+refresh the browser to select one. Keep factory creation per run so private
+state does not leak between runs.
 
 The supplied `Explorer` policy selects a seen, unvisited cell closest to the
 goal using the configured geometric metric, invokes your planner on the
