@@ -15,6 +15,8 @@ the environment gRPC server at `environment:50051`; this port is not published
 to the host. The control panel controls both services over proxied HTTP.
 See [the student agent guide](docs/agent.md) for extension interfaces, turn
 semantics, distance metrics, and the A*/Dijkstra exercises.
+See [the class diagrams](docs/class-diagrams.md) for the functional environment
+and agent class relationships.
 
 ## Application requirements
 
