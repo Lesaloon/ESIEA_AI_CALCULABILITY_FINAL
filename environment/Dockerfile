@@ -8,4 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY grid/ ./grid/
 COPY main.py .
 
+ENV HTTP_HOST=0.0.0.0 HTTP_PORT=8000
+EXPOSE 8000
+
 CMD ["python", "main.py"]
