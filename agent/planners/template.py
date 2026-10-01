@@ -17,6 +17,8 @@ def _path_to(parent: dict[Position, Position | None], target: Position) -> list[
 
 
 class DijkstraPlanner:
+    """Find minimum-cost paths with Dijkstra's shortest-path algorithm."""
+
     def plan(self, graph: DiscoveredGraphView, start: Position, target: Position) -> PlanningResult:
         costs = {start: 0.0}
         parent: dict[Position, Position | None] = {start: None}
@@ -58,6 +60,8 @@ class DijkstraPlanner:
 
 
 class AStarPlanner:
+    """Find weighted paths with A* and a configurable distance heuristic."""
+
     def __init__(self, heuristic='l1'):
         self.heuristic = heuristic
 

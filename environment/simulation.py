@@ -31,6 +31,8 @@ class SimulationError(Exception):
 
 
 class Simulation:
+    """Manage the authoritative scenario, run state, and turn history."""
+
     def __init__(self, grid_provider):
         self._grid = grid_provider
         self.lock = asyncio.Lock()

@@ -23,6 +23,8 @@ def trace_dict(trace):
 
 
 class Runner:
+    """Coordinate agent decisions, environment turns, and replay history."""
+
     def __init__(self, client):
         self.client = client
         self.lock = asyncio.Lock()

@@ -1,10 +1,12 @@
-"""Build read-only student views exclusively from local observations."""
+"""Build read-only views exclusively from local observations."""
 
 from types import MappingProxyType
 from agent.models import DiscoveredGraphView
 
 
 class DiscoveredGraph:
+    """Accumulate a graph using only cells observed by the agent."""
+
     def __init__(self):
         self.edges = {}
         self.weights = {}

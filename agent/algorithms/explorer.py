@@ -5,6 +5,8 @@ from agent.models import Decision, Move, Stop
 
 
 class Explorer:
+    """Explore unvisited cells by repeatedly planning one move at a time."""
+
     def __init__(self, planner):
         self.planner = planner
 

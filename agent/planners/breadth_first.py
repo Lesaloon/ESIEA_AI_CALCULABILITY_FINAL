@@ -5,6 +5,8 @@ from agent.models import PlanningResult, SearchTrace
 
 
 class BreadthFirstPlanner:
+    """Find shortest-hop paths while deliberately ignoring cell weights."""
+
     def plan(self, graph, start, target):
         queue = deque([start])
         parent = {start: None}
