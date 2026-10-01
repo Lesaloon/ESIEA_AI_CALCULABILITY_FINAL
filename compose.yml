@@ -1,0 +1,41 @@
+name: ai-calculability
+
+services:
+  control-panel:
+    build:
+      context: ./control-panel
+    ports:
+      - "127.0.0.1:4200:80"
+    networks:
+      - simulation
+
+  environment:
+    build:
+      context: ./environment
+    environment:
+      HTTP_HOST: "0.0.0.0"
+      HTTP_PORT: "8000"
+      GRPC_HOST: "0.0.0.0"
+      GRPC_PORT: "50051"
+    ports:
+      - "127.0.0.1:8000:8000"
+    expose:
+      - "50051"
+    networks:
+      - simulation
+
+  agent:
+    build:
+      context: ./agent
+    environment:
+      HTTP_HOST: "0.0.0.0"
+      HTTP_PORT: "8001"
+      ENVIRONMENT_GRPC_ADDRESS: "environment:50051"
+    ports:
+      - "127.0.0.1:8001:8001"
+    networks:
+      - simulation
+
+networks:
+  simulation:
+    driver: bridge
