@@ -54,6 +54,7 @@ with `HTTP_HOST` and `HTTP_PORT`; Docker uses `0.0.0.0:8000`.
 
 - `GET /health`: server health status.
 - `GET /grid`: grid dimensions and node/edge counts.
+- `GET /grid/render`: grid dimensions and a two-dimensional matrix of cell enums.
 - `POST /grid/obstacles/{x}/{y}`: remove a cell and its edges to create an
   obstacle. Returns `201` with `{"x": x, "y": y}`, `404` for out-of-bounds
   coordinates, or `409` if the cell is already an obstacle.
@@ -74,6 +75,40 @@ For development with automatic reload, run
 Startup creates a 10×10 `Grid`. Its `graph` attribute is a NetworkX graph
 with `(x, y)` nodes and horizontal/vertical edges, without wrapping at boundaries.
 Import the library with `from environment.grid import Grid` from the project root.
+
+### Frontend grid rendering
+
+Fetch `GET /grid/render` to get a snapshot of the current grid. For example, a
+3×2 grid with an obstacle at `(1, 0)` would return:
+
+```json
+{
+  "width": 3,
+  "height": 2,
+  "cells": [
+    ["empty", "obstacle", "empty"],
+    ["empty", "empty", "empty"]
+  ]
+}
+```
+
+Coordinates are zero-based: access a cell with `cells[y][x]`. Each of the
+`height` rows contains `width` values. Cell types are string enums defined in
+the OpenAPI schema: `empty` and `obstacle`.
+
+The API uses the shared renderer, with missing NetworkX nodes rendered as
+obstacles. Fetch again after adding an obstacle to get the updated matrix.
+
+```ts
+type CellType = 'empty' | 'obstacle';
+interface GridRender {
+  width: number;
+  height: number;
+  cells: CellType[][];
+}
+```
+
+### Docker
 
 Validate the Compose configuration:
 

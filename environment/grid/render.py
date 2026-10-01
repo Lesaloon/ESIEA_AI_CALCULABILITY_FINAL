@@ -1,25 +1,35 @@
-"""Text representation of a grid, shared by the CLI and the API."""
+"""Text and enum representations of a grid, shared by the CLI and the API."""
+
+from enum import StrEnum
 
 from .grid import Grid
 
 EMPTY = "."
 OBSTACLE = "#"
-AGENT = "A"
+
+
+class CellType(StrEnum):
+    EMPTY = "empty"
+    OBSTACLE = "obstacle"
+
+
+_CELL_TYPES = {
+    EMPTY: CellType.EMPTY,
+    OBSTACLE: CellType.OBSTACLE,
+}
 
 # ANSI colors used only for terminal output.
 _RESET = "\x1b[0m"
 _COLORS = {
     EMPTY: "\x1b[2m",
     OBSTACLE: "\x1b[1;97m",
-    AGENT: "\x1b[1;31m",
 }
 
 
-def to_chars(grid: Grid, markers: dict[tuple[int, int], str] | None = None) -> list[str]:
+def to_chars(grid: Grid) -> list[str]:
     """Return one string per row (y), one character per cell (x).
 
-    Obstacles are the nodes missing from the graph. `markers` places extra
-    symbols, such as the agent, on top of the cells.
+    Obstacles are the nodes missing from the graph.
     """
     width, height = grid.width, grid.height
     # Start fully blocked and open the existing nodes: one pass over the graph,
@@ -28,13 +38,14 @@ def to_chars(grid: Grid, markers: dict[tuple[int, int], str] | None = None) -> l
     empty = ord(EMPTY)
     for x, y in grid.graph.nodes:
         cells[y * width + x] = empty
-    for (x, y), symbol in (markers or {}).items():
-        if not (0 <= x < width and 0 <= y < height):
-            raise ValueError(f"Marker {(x, y)} is outside the grid")
-        cells[y * width + x] = ord(symbol)
 
     text = cells.decode("ascii")
     return [text[y * width : (y + 1) * width] for y in range(height)]
+
+
+def to_cells(grid: Grid) -> list[list[CellType]]:
+    """Return empty/obstacle enum cells indexed by [y][x]."""
+    return [[_CELL_TYPES[symbol] for symbol in row] for row in to_chars(grid)]
 
 
 def format_chars(rows: list[str], color: bool = True) -> str:

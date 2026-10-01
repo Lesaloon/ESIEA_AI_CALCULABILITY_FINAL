@@ -5,14 +5,23 @@ import os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 import uvicorn
 
 if __package__:
-    from .grid import Grid
+    from .grid import CellType, Grid, to_cells
 else:
-    from grid import Grid
+    from grid import CellType, Grid, to_cells
 
 OBSTACLE_COUNT = 10
+
+
+class GridRender(BaseModel):
+    width: int
+    height: int
+    cells: list[list[CellType]] = Field(
+        description="Row-major matrix: cells[y][x], with zero-based coordinates."
+    )
 
 
 @asynccontextmanager
@@ -44,6 +53,13 @@ def get_grid(request: Request) -> dict[str, int]:
         "nodes": grid.graph.number_of_nodes(),
         "edges": grid.graph.number_of_edges(),
     }
+
+
+@app.get("/grid/render", response_model=GridRender)
+async def render_grid(request: Request) -> GridRender:
+    """Render the current grid as cell types for the frontend."""
+    grid: Grid = request.app.state.grid
+    return GridRender(width=grid.width, height=grid.height, cells=to_cells(grid))
 
 
 @app.post("/grid/obstacles/{x}/{y}", status_code=201)
