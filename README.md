@@ -54,10 +54,20 @@ with `HTTP_HOST` and `HTTP_PORT`; Docker uses `0.0.0.0:8000`.
 
 - `GET /health`: server health status.
 - `GET /grid`: grid dimensions and node/edge counts.
+- `POST /grid/obstacles/{x}/{y}`: remove a cell and its edges to create an
+  obstacle. Returns `201` with `{"x": x, "y": y}`, `404` for out-of-bounds
+  coordinates, or `409` if the cell is already an obstacle.
 - `/docs`: interactive Swagger UI.
 - `/redoc`: alternative API documentation.
 
-CORS allows the control panel origin `http://localhost:4200` for GET requests.
+CORS allows the control panel origin `http://localhost:4200` for GET and POST requests.
+
+For example, add an obstacle at `(3, 4)`:
+
+```sh
+curl -X POST http://localhost:8000/grid/obstacles/3/4
+```
+
 For development with automatic reload, run
 `python -m uvicorn environment.main:app --reload --host 127.0.0.1 --port 8000`.
 
