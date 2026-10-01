@@ -1,0 +1,50 @@
+<div class="size-controls">
+  <div class="size-slider">
+    <label for="grid-size">Grid size <output for="grid-size">{{ store.selectedSize() }} × {{ store.selectedSize() }}</output></label>
+    <input #sizeInput id="grid-size" type="range" min="3" max="20" step="1"
+      [value]="store.selectedSize()" [disabled]="store.busy() || !store.grid()"
+      [attr.aria-valuetext]="store.selectedSize() + ' by ' + store.selectedSize()"
+      aria-describedby="resize-help" (input)="store.selectedSize.set(sizeInput.valueAsNumber)">
+    <div class="size-limits" aria-hidden="true"><span>3 × 3</span><span>20 × 20</span></div>
+  </div>
+  <button hlmBtn [disabled]="store.busy() || !store.grid() || store.selectedSize() === store.grid()?.width" (click)="store.resize()">Apply size</button>
+</div>
+<p id="resize-help" class="resize-help">Applying a size clears obstacles and resets weights to 1.</p>
+
+<div class="edit-controls">
+  <div class="mode-controls" role="group" aria-label="Edit mode">
+    <span class="control-label">Edit mode</span>
+    <button hlmBtn [variant]="store.editMode() === 'obstacles' ? 'default' : 'outline'"
+      [attr.aria-pressed]="store.editMode() === 'obstacles'" [disabled]="store.busy()"
+      (click)="store.editMode.set('obstacles')">Obstacles</button>
+    <button hlmBtn [variant]="store.editMode() === 'weights' ? 'default' : 'outline'"
+      [attr.aria-pressed]="store.editMode() === 'weights'" [disabled]="store.busy()"
+      (click)="store.editMode.set('weights')">Weights</button>
+  </div>
+  @if (store.editMode() === 'weights') {
+    <div class="weight-controls">
+      <div class="size-slider">
+        <label for="weight-range">Weight brush</label>
+        <input #weightRange id="weight-range" type="range" min="1" max="9" step="1"
+          [value]="store.validWeight() ? store.selectedWeight() : 1" [disabled]="store.busy() || !store.grid()"
+          aria-describedby="weight-help" (input)="store.selectedWeight.set(weightRange.valueAsNumber)">
+        <div class="size-limits" aria-hidden="true"><span>1 · Low</span><span>9 · High</span></div>
+      </div>
+      <div class="weight-number">
+        <label for="weight-value">Value</label>
+        <input #weightValue id="weight-value" type="number" min="1" max="9" step="1" required
+          [value]="store.selectedWeight()" [disabled]="store.busy() || !store.grid()"
+          [attr.aria-invalid]="!store.validWeight()" aria-describedby="weight-help"
+          (input)="store.selectedWeight.set(weightValue.valueAsNumber)">
+      </div>
+    </div>
+    <p id="weight-help" class="resize-help">Choose a whole number from 1 to 9. Obstacles keep their saved weight.</p>
+    <div class="weight-actions">
+      <button hlmBtn variant="outline" [disabled]="store.busy() || !store.walkableCells() || !store.validWeight()"
+        (click)="store.applyWeightToAll()">Apply to all walkable cells</button>
+      <button hlmBtn variant="outline" [disabled]="store.busy() || !store.grid()"
+        (click)="store.resetWeights()">Reset weights</button>
+    </div>
+    <p class="resize-help">Reset weights sets every weight to 1, including those beneath obstacles.</p>
+  }
+</div>

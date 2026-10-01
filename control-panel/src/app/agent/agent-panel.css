@@ -1,0 +1,8 @@
+:host { display: block; }
+section { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h2 { font-size: 16px; font-weight: 600; }
+.availability { padding: 4px 8px; background: var(--secondary); color: var(--muted-foreground); border-radius: 4px; font-size: 12px; }
+@media (max-width: 480px) {
+  section { padding: 16px; }
+}

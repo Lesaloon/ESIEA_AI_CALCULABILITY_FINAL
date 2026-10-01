@@ -1,0 +1,27 @@
+<main>
+  <header>
+    <p class="project">AI Calculability / Control panel</p>
+    <h1>Simulation workspace</h1>
+  </header>
+
+  <div class="workspace-tabs" role="tablist" aria-label="Simulation workspace"
+    (keydown)="navigateTabs($event)">
+    <button id="environment-tab" type="button" role="tab" aria-controls="environment-panel"
+      [attr.aria-selected]="activeTab() === 'environment'"
+      [attr.tabindex]="activeTab() === 'environment' ? 0 : -1"
+      (click)="activeTab.set('environment')">Environment</button>
+    <button id="agent-tab" type="button" role="tab" aria-controls="agent-panel"
+      [attr.aria-selected]="activeTab() === 'agent'"
+      [attr.tabindex]="activeTab() === 'agent' ? 0 : -1"
+      (click)="activeTab.set('agent')">Agent <span class="tab-note">Coming soon</span></button>
+  </div>
+
+  <div id="environment-panel" role="tabpanel" aria-labelledby="environment-tab"
+    tabindex="0" [hidden]="activeTab() !== 'environment'">
+    <app-environment-panel />
+  </div>
+  <div id="agent-panel" role="tabpanel" aria-labelledby="agent-tab"
+    tabindex="0" [hidden]="activeTab() !== 'agent'">
+    <app-agent-panel />
+  </div>
+</main>
