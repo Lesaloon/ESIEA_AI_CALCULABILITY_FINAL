@@ -18,10 +18,11 @@ The control panel is assumed to control both Python services over HTTP.
 
 ## Application requirements
 
-Each application folder contains a minimal base-image Dockerfile: Nginx for
-the control panel and Python slim for the environment and agent. Application
-code and startup commands still need to be added. For now, Nginx serves its
-default page and the Python containers exit without starting a service.
+Each application folder contains a Dockerfile: Nginx for the control panel
+and Python slim for the environment and agent. Control-panel and agent
+code and startup commands still need to be added. For now, Nginx
+serves its default page. The environment initializes a NetworkX grid and exits;
+the agent also exits without starting a service.
 
 - Build the Angular application and copy its static output into Nginx's
   `/usr/share/nginx/html` directory. Nginx listens on port `80` inside its
@@ -39,6 +40,17 @@ default page and the Python containers exit without starting a service.
 The host ports bind to loopback for local development.
 
 ## Commands
+
+Run the environment bootstrap locally:
+
+```sh
+python -m pip install -r environment/requirements.txt
+python -m environment.main
+```
+
+The bootstrap creates a 10×10 `Grid`. Its `graph` attribute is a NetworkX graph
+with `(x, y)` nodes and horizontal/vertical edges, without wrapping at boundaries.
+Import the library with `from environment.grid import Grid` from the project root.
 
 Validate the Compose configuration:
 
