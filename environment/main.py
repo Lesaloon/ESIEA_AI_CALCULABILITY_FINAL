@@ -12,6 +12,8 @@ if __package__:
 else:
     from grid import Grid
 
+OBSTACLE_COUNT = 10
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,6 +52,8 @@ def main() -> None:
         host=os.getenv("HTTP_HOST", "127.0.0.1"),
         port=int(os.getenv("HTTP_PORT", "8000")),
     )
+
+    grid.create_obstacles(OBSTACLE_COUNT)
 
 
 if __name__ == "__main__":
