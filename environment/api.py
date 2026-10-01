@@ -4,7 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from .simulation import Simulation, SimulationError
+from .grpc_server import start_server
 
 if __package__:
     from .grid import CellType, Grid, to_cells
@@ -36,6 +39,11 @@ class GridCoordinate(BaseModel):
     y: int = Field(strict=True)
 
 
+class ScenarioConfiguration(BaseModel):
+    start: GridCoordinate | None = None
+    goal: GridCoordinate | None = None
+
+
 class GridWeightStroke(GridWeight):
     cells: list[GridCoordinate] = Field(min_length=1, max_length=400)
 
@@ -48,7 +56,12 @@ class GridObstacleStroke(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.grid = Grid(width=10, height=10)
-    yield
+    app.state.simulation = Simulation(lambda: app.state.grid)
+    server, app.state.grpc_port = await start_server(app.state.simulation)
+    try:
+        yield
+    finally:
+        await server.stop(0)
 
 
 app = FastAPI(title="Simulation Environment", lifespan=lifespan)
@@ -58,6 +71,41 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+
+@app.middleware('http')
+async def synchronize_grid(request: Request, call_next):
+    if request.url.path.startswith(('/grid', '/scenario', '/runs')):
+        async with request.app.state.simulation.lock:
+            if request.method != 'GET' and request.app.state.simulation.active:
+                return JSONResponse(status_code=409, content={'detail': 'End the current run before editing its scenario'})
+            return await call_next(request)
+    return await call_next(request)
+
+
+@app.exception_handler(SimulationError)
+async def simulation_error(request, exc):
+    return JSONResponse(status_code=exc.status, content={'detail': str(exc)})
+
+
+@app.get('/scenario')
+async def get_scenario(request: Request):
+    return request.app.state.simulation.scenario()
+
+
+@app.post('/scenario')
+async def configure_scenario(body: ScenarioConfiguration, request: Request):
+    return request.app.state.simulation.configure(
+        (body.start.x, body.start.y) if body.start else None,
+        (body.goal.x, body.goal.y) if body.goal else None)
+
+
+@app.get('/runs/{run_id}/grid', response_model=GridRender)
+async def run_grid(run_id: str, request: Request):
+    """UI-only frozen map for replay; deliberately absent from the gRPC API."""
+    simulation = request.app.state.simulation
+    simulation.require_run(run_id)
+    return simulation.run['grid_snapshot']
 
 
 @app.get("/health")
@@ -91,6 +139,7 @@ async def render_grid(request: Request) -> GridRender:
 @app.post("/grid/obstacles/{x}/{y}", status_code=201)
 async def add_obstacle(x: int, y: int, request: Request) -> dict[str, int]:
     grid: Grid = request.app.state.grid
+    request.app.state.simulation.protect_obstacle([(x, y)])
     if not (0 <= x < grid.width and 0 <= y < grid.height):
         raise HTTPException(status_code=404, detail="Coordinates are outside the grid")
     try:
@@ -123,6 +172,8 @@ async def reset_grid(request: Request) -> GridRender:
 async def paint_obstacles(body: GridObstacleStroke, request: Request) -> GridRender:
     """Set the desired cell state atomically, preserving saved node weights."""
     grid: Grid = request.app.state.grid
+    if body.obstacle:
+        request.app.state.simulation.protect_obstacle([(cell.x, cell.y) for cell in body.cells])
     for cell in body.cells:
         if not (0 <= cell.x < grid.width and 0 <= cell.y < grid.height):
             raise HTTPException(status_code=404, detail="Coordinates are outside the grid")
@@ -178,4 +229,5 @@ async def reset_weights(request: Request) -> GridRender:
 async def resize_grid(body: GridResize, request: Request) -> GridRender:
     """Replace the environment with an empty square grid of the requested size."""
     request.app.state.grid = Grid(width=body.size, height=body.size)
+    request.app.state.simulation.configure(None, None)
     return await render_grid(request)

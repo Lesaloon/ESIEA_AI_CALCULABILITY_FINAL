@@ -1,32 +1,11 @@
 @if (store.grid(); as current) {
-  <div class="grid-scroll">
-    <div class="board brush-mode" role="group" aria-label="Environment cells" aria-describedby="grid-help"
-      [class.weight-mode]="store.editMode() === 'weights'" [class.painting]="store.painting()"
-      (pointerleave)="store.leaveBrushBoard()" (dragstart)="$event.preventDefault()"
-      [style.min-width.px]="24 + current.width * 28" [style.max-width.px]="24 + current.width * 48"
-      [style.grid-template-columns]="'24px repeat(' + current.width + ', minmax(24px, 1fr))'">
-      <span aria-hidden="true"></span>
-      @for (cell of current.cells[0]; track $index; let x = $index) {
-        <span class="coordinate" aria-hidden="true">{{ x }}</span>
-      }
-      @for (row of current.cells; track $index; let y = $index) {
-        <span class="coordinate" aria-hidden="true">{{ y }}</span>
-        @for (cell of row; track $index; let x = $index) {
-          <button class="cell" [class.obstacle]="cell === 'obstacle'"
-            [style.background-color]="weightColor(current.weights[y][x])"
-            [disabled]="(store.busy() && !store.painting()) || (store.editMode() === 'weights' && !store.validWeight())"
-            [attr.aria-disabled]="store.editMode() === 'weights' && cell === 'obstacle'"
-            [attr.aria-label]="cellLabel(x, y)" [title]="cellLabel(x, y)"
-            (pointerdown)="store.startBrush($event, x, y)"
-            (pointerenter)="store.continueBrush($event, x, y)"
-            (click)="store.clickCell($event, x, y)">
-            @if (cell === 'obstacle') { <span aria-hidden="true">×</span> }
-            @else { <span class="weight" aria-hidden="true">{{ current.weights[y][x] ?? '…' }}</span> }
-          </button>
-        }
-      }
-    </div>
-  </div>
+  <app-simulation-grid [grid]="current" [start]="store.simulation.scenario().start" [goal]="store.simulation.scenario().goal"
+    [agent]="store.simulation.locked() ? store.simulation.state()?.run?.observation?.position ?? null : null"
+    [editable]="true" label="Environment cells" [actionLabel]="'Edit mode: ' + store.editMode()"
+    [disabled]="store.simulation.locked() || store.simulation.busy() || (store.busy() && !store.painting()) || (store.editMode() === 'weights' && !store.validWeight())"
+    (cellDown)="store.startBrush($event.event, $event.x, $event.y)"
+    (cellEnter)="store.continueBrush($event.event, $event.x, $event.y)"
+    (cellClick)="store.clickCell($event.event, $event.x, $event.y)" (boardLeave)="store.leaveBrushBoard()" />
   <footer>
     <p class="counts">{{ current.width }} × {{ current.height }} · {{ store.obstacles() }} obstacles · {{ store.walkableCells() }} empty</p>
     <div class="legend"><span><i class="weight-key"></i> Weight 1–9 · low to high</span><span><i class="blocked-key"></i> Obstacle</span></div>

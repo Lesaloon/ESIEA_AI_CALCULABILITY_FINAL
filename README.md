@@ -10,17 +10,19 @@ Angular + Spartan UI control panel and Python environment, following `docs/archi
 | Python environment | `environment/` | `http://localhost:4200/api/environment/health` (Docker proxy) |
 | Python agent | `agent/` | `http://localhost:8001` |
 
-All three services share the `simulation` bridge network. The agent is configured
-to connect to a future environment gRPC server at `environment:50051`; this port
-is not published to the host. The gRPC server is not implemented yet.
-The control panel controls the environment over HTTP. Agent controls are not implemented yet.
+All three services share the `simulation` bridge network. The agent connects to
+the environment gRPC server at `environment:50051`; this port is not published
+to the host. The control panel controls both services over proxied HTTP.
+See [the student agent guide](docs/agent.md) for extension interfaces, turn
+semantics, distance metrics, and the A*/Dijkstra exercises.
 
 ## Application requirements
 
 Each application folder contains a Dockerfile: Node builds the Angular panel,
-Nginx serves it, and Python slim runs the environment and agent. The environment
-initializes an empty NetworkX grid and starts a FastAPI HTTP server; the agent
-is still a placeholder and exits without starting a service.
+Nginx serves it, and Python slim runs the environment and agent. Both Python
+images use the repository-root build context to include shared protobuf
+contracts. The environment owns the NetworkX grid and serves HTTP + gRPC;
+the agent serves HTTP controls and executes student policies over gRPC.
 
 - The control-panel Dockerfile builds Angular and copies the static output into
   Nginx's `/usr/share/nginx/html` directory. Port `80` inside the container is
@@ -30,6 +32,7 @@ is still a placeholder and exits without starting a service.
   not settings that Docker implements automatically.
 - The agent must read `ENVIRONMENT_GRPC_ADDRESS` and retry connections while
   the environment starts or restarts.
+- `/api/agent` proxies to `agent:8001` in Docker and `127.0.0.1:8001` locally.
 - The panel uses the relative API URL `/api/environment`. In Docker, Nginx
   forwards it to `environment:8000` on the internal network. The environment's
   port 8000 is not published, avoiding conflicts with other local servers.
@@ -117,9 +120,11 @@ npm ci
 npm start
 ```
 
-Open `http://localhost:4200`. The **Environment** tab contains the grid editor;
-the **Agent** tab reserves a workspace for future agent configuration and run
-controls. Switching tabs preserves the environment state and editor settings.
+Open `http://localhost:4200`. The **Environment** tab contains the grid editor
+and configurable start/goal placement. The **Agent** tab contains algorithm
+selection, Step/Run/Pause/Reset controls, local observations, distance metrics,
+movement history and replay. Start the agent locally with `python -m agent.main`
+after installing `agent/requirements.txt`. Switching tabs preserves shared state.
 Use Left/Right arrows or Home/End to navigate the tabs with a keyboard.
 
 In **Obstacles** mode, hold the left mouse button
@@ -151,8 +156,9 @@ Spartan Helm button sources are under `control-panel/src/app/ui/`, generated
 with the Spartan CLI; the panel uses Angular signals and built-in control flow.
 The root component contains the workspace tabs. Feature components live in
 `src/app/environment/` (panel, grid controls, and grid rendering) and
-`src/app/agent/` (future agent panel). `EnvironmentStore` owns the environment
-state, brush operations, and API calls and is shared within the environment panel.
+`src/app/agent/` (execution and replay). `EnvironmentStore` owns the environment
+state, brush operations, and API calls. `SimulationStore` shares scenario/run
+state across tabs; `SimulationGrid` renders both editor and history overlays.
 
 Fetch `GET /grid/render` to get a snapshot of the current grid. For example, a
 3×2 grid with an obstacle at `(1, 0)` would return:
@@ -205,11 +211,11 @@ docker compose config --quiet
 Build and start the containers:
 
 ```sh
-docker compose up -d --build control-panel environment
+docker compose up -d --build
 ```
 
-Open **http://localhost:4200** (HTTP). The panel waits for the environment's
-health check before starting. Subsequent starts can use `docker compose up -d`;
+Open **http://localhost:4200** (HTTP). The panel waits for the environment and
+agent health checks before starting. Subsequent starts can use `docker compose up -d`;
 after changing application code, use `--build` to update the images.
 Check the proxied API with `curl http://localhost:4200/api/environment/grid/render`.
 

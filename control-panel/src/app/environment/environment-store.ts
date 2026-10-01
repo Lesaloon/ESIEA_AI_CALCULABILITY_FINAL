@@ -2,13 +2,15 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 import { EnvironmentApi, GridRender } from '../environment-api';
+import { SimulationStore } from '../simulation-store';
 
-@Injectable()
+@Injectable({ providedIn: 'root' })
 export class EnvironmentStore {
   private readonly api = inject(EnvironmentApi);
+  readonly simulation = inject(SimulationStore);
   readonly grid = signal<GridRender | null>(null);
   readonly selectedSize = signal(10);
-  readonly editMode = signal<'obstacles' | 'weights'>('obstacles');
+  readonly editMode = signal<'obstacles' | 'weights' | 'start' | 'goal'>('obstacles');
   readonly selectedWeight = signal(3);
   readonly painting = signal(false);
   private stroke: {
@@ -61,6 +63,12 @@ export class EnvironmentStore {
   }
 
   async editCell(x: number, y: number) {
+    if (this.simulation.locked() || this.simulation.busy() || this.busy()) return;
+    const mode = this.editMode();
+    if (mode === 'start' || mode === 'goal') {
+      await this.simulation.place(mode, { x, y });
+      return;
+    }
     if (this.editMode() === 'obstacles') {
       await this.toggleObstacle(x, y);
       return;
@@ -76,13 +84,16 @@ export class EnvironmentStore {
 
   clickCell(event: MouseEvent, x: number, y: number) {
     // Mouse edits are handled on pointerdown; retain keyboard/touch clicks.
-    if (event.detail > 0 && (event as PointerEvent).pointerType === 'mouse') return;
+    if (event.detail > 0 && (event as PointerEvent).pointerType === 'mouse'
+      && (this.editMode() === 'obstacles' || this.editMode() === 'weights')) return;
     void this.editCell(x, y);
   }
 
   startBrush(event: PointerEvent, x: number, y: number) {
     const grid = this.grid();
     const mode = this.editMode();
+    if (this.simulation.locked() || this.simulation.busy()) return;
+    if (mode === 'start' || mode === 'goal') return;
     if (event.pointerType !== 'mouse' || event.button !== 0 || this.busy()
       || !grid || (mode === 'weights' && (!this.validWeight() || grid.cells[y][x] !== 'empty'))) return;
     event.preventDefault();
@@ -192,6 +203,7 @@ export class EnvironmentStore {
     if (size === this.grid()?.width) return;
     await this.run(async () => {
       this.setGrid(await firstValueFrom(this.api.resize(size).pipe(timeout(8000))));
+      await this.simulation.refresh();
       this.message.set(`Grid resized to ${size} × ${size}.`);
     });
   }

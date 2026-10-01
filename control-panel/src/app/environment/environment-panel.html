@@ -2,17 +2,21 @@
   <div class="toolbar">
     <div>
       <h2 id="grid-title">Environment grid</h2>
-      <p id="grid-help">{{ store.editMode() === 'obstacles' ? 'Hold the left mouse button and drag: start on an empty cell to paint obstacles, or an obstacle to erase. Release to save.' : 'Hold the left mouse button and drag to paint weights. Release to save.' }} You can also use Tab and Enter or Space. Numbers show node weights.</p>
+      <p id="grid-help">{{ store.editMode() === 'start' || store.editMode() === 'goal' ? 'Click a walkable cell to place the selected endpoint.' : store.editMode() === 'obstacles' ? 'Hold the left mouse button and drag: start on an empty cell to paint obstacles, or an obstacle to erase. Release to save.' : 'Hold the left mouse button and drag to paint weights. Release to save.' }} You can also use Tab and Enter or Space. Numbers show node weights.</p>
     </div>
     <div class="actions">
       <button hlmBtn variant="outline" [disabled]="store.busy()" (click)="store.refresh()">Refresh</button>
-      <button hlmBtn variant="outline" [disabled]="store.busy() || !store.grid() || (store.obstacles() === 0 && !store.changedWeights())" (click)="store.reset()">Reset grid</button>
+      <button hlmBtn variant="outline" [disabled]="store.simulation.locked() || store.simulation.busy() || store.busy() || !store.grid() || (store.obstacles() === 0 && !store.changedWeights())" (click)="store.reset()">Reset grid</button>
     </div>
   </div>
 
-  <app-grid-controls />
+  <fieldset [disabled]="store.simulation.locked() || store.simulation.busy()" style="border: 0; padding: 0; margin: 0; min-width: 0">
+    <app-grid-controls />
+  </fieldset>
+  <app-scenario-controls />
   <app-environment-grid />
 </section>
 
 @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
+@if (store.simulation.error()) { <p class="error" role="alert">{{ store.simulation.error() }}</p> }
 <p class="status" role="status">{{ store.painting() ? 'Painting… release the mouse button to save.' : store.busy() ? 'Updating…' : store.message() }}</p>

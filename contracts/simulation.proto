@@ -1,0 +1,62 @@
+syntax = "proto3";
+package simulation.v1;
+
+message Position { int32 x = 1; int32 y = 2; }
+message Distances {
+  double l1 = 1;
+  double l2 = 2;
+  double squared_l2 = 3;
+  double mse = 4;
+  double linf = 5;
+}
+message Neighbor {
+  Position position = 1;
+  double movement_cost = 2;
+  Distances goal_distances = 3;
+}
+message Observation {
+  string run_id = 1;
+  int32 turn = 2;
+  Position position = 3;
+  Position goal = 4;
+  double current_cell_weight = 5;
+  Distances goal_distances = 6;
+  repeated Neighbor neighbors = 7;
+  bool goal_reached = 8;
+}
+message StartRequest { string request_id = 1; }
+message RunRequest { string run_id = 1; }
+message ActionRequest {
+  string run_id = 1;
+  int32 expected_turn = 2;
+  string action_id = 3;
+  oneof action { Position move = 4; string stop_reason = 5; }
+}
+message TurnEvent {
+  int32 sequence = 1;
+  int32 turn = 2;
+  Position from = 3;
+  Position to = 4;
+  string action = 5;
+  double step_cost = 6;
+  double cumulative_cost = 7;
+  Observation observation = 8;
+  string reason = 9;
+}
+message RunState {
+  string run_id = 1;
+  string status = 2;
+  Observation observation = 3;
+  double cumulative_cost = 4;
+  Position start = 5;
+}
+message EventsRequest { string run_id = 1; int32 after_sequence = 2; }
+message Events { repeated TurnEvent events = 1; }
+service Environment {
+  rpc StartRun(StartRequest) returns (RunState);
+  rpc Observe(RunRequest) returns (Observation);
+  rpc ApplyAction(ActionRequest) returns (TurnEvent);
+  rpc GetRunState(RunRequest) returns (RunState);
+  rpc GetTurnEvents(EventsRequest) returns (Events);
+  rpc EndRun(RunRequest) returns (RunState);
+}

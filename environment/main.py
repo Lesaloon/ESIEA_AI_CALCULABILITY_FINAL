@@ -4,10 +4,7 @@ import os
 
 import uvicorn
 
-if __package__:
-    from .api import app
-else:
-    from api import app
+from environment.api import app
 
 
 def main() -> None:

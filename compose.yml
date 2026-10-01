@@ -9,12 +9,15 @@ services:
     depends_on:
       environment:
         condition: service_healthy
+      agent:
+        condition: service_healthy
     networks:
       - simulation
 
   environment:
     build:
-      context: ./environment
+      context: .
+      dockerfile: environment/Dockerfile
     environment:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8000"
@@ -34,13 +37,23 @@ services:
 
   agent:
     build:
-      context: ./agent
+      context: .
+      dockerfile: agent/Dockerfile
     environment:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8001"
       ENVIRONMENT_GRPC_ADDRESS: "environment:50051"
     ports:
       - "127.0.0.1:8001:8001"
+    depends_on:
+      environment:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     networks:
       - simulation
 

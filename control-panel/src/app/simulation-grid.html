@@ -1,0 +1,35 @@
+@let current = grid();
+<div class="grid-scroll">
+  <div class="board" role="group" [attr.aria-label]="label()" [class.editable]="editable()"
+    (pointerleave)="boardLeave.emit()" (dragstart)="$event.preventDefault()"
+    [style.min-width.px]="24 + current.width * 28" [style.max-width.px]="24 + current.width * 48"
+    [style.grid-template-columns]="'24px repeat(' + current.width + ', minmax(24px, 1fr))'">
+    <span aria-hidden="true"></span>
+    @for (cell of current.cells[0]; track $index; let x = $index) {
+      <span class="coordinate" aria-hidden="true">{{ x }}</span>
+    }
+    @for (row of current.cells; track $index; let y = $index) {
+      <span class="coordinate" aria-hidden="true">{{ y }}</span>
+      @for (cell of row; track $index; let x = $index) {
+        @let key = x + ',' + y;
+        <button type="button" class="cell" [class.obstacle]="!unknown(x, y) && cell === 'obstacle'"
+          [class.unknown]="unknown(x, y)" [class.start]="at(start(), x, y)" [class.goal]="at(goal(), x, y)"
+          [class.agent]="at(agent(), x, y)" [class.visited]="visits().has(key)"
+          [class.expanded]="expanded().has(key)" [class.frontier]="frontier().has(key)" [class.path]="path().has(key)"
+          [style.background-color]="color(x, y)" [disabled]="disabled()"
+          [attr.aria-label]="cellLabel(x, y)" [title]="cellLabel(x, y)"
+          (pointerdown)="cellDown.emit({event: $event, x, y})"
+          (pointerenter)="cellEnter.emit({event: $event, x, y})"
+          (click)="cellClick.emit({event: $event, x, y})">
+          @if (at(agent(), x, y)) { <span class="marker agent-marker" aria-hidden="true">A</span> }
+          @else if (at(goal(), x, y)) { <span class="marker goal-marker" aria-hidden="true">G</span> }
+          @else if (at(start(), x, y)) { <span class="marker start-marker" aria-hidden="true">S</span> }
+          @else if (unknown(x, y)) { <span class="weight" aria-hidden="true">?</span> }
+          @else if (cell === 'obstacle') { <span aria-hidden="true">×</span> }
+          @else { <span class="weight" aria-hidden="true">{{ weight(x, y) ?? '…' }}</span> }
+          @if (visits().has(key)) { <span class="visit-count" aria-hidden="true">{{ visits().get(key) }}</span> }
+        </button>
+      }
+    }
+  </div>
+</div>

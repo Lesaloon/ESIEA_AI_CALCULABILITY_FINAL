@@ -13,7 +13,7 @@
     <button id="agent-tab" type="button" role="tab" aria-controls="agent-panel"
       [attr.aria-selected]="activeTab() === 'agent'"
       [attr.tabindex]="activeTab() === 'agent' ? 0 : -1"
-      (click)="activeTab.set('agent')">Agent <span class="tab-note">Coming soon</span></button>
+      (click)="activeTab.set('agent')">Agent</button>
   </div>
 
   <div id="environment-panel" role="tabpanel" aria-labelledby="environment-tab"

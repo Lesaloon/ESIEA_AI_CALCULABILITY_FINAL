@@ -1,6 +1,103 @@
 <section aria-labelledby="agent-title">
-  <div class="heading">
-    <h2 id="agent-title">Agent</h2>
-    <span class="availability">Coming soon</span>
+  <header class="heading">
+    <div><p class="eyebrow">Local-observation laboratory</p><h2 id="agent-title">Agent execution</h2></div>
+    <span class="availability" role="status">{{ sim.state()?.status ?? 'Connecting…' }}</span>
+  </header>
+  <p class="intro">One turn, one decision. The agent sees its coordinates, the goal, and its walkable neighbors. Everything else must be discovered.</p>
+
+  <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
+    <legend class="sr-only">Run configuration</legend>
+    <label class="algorithm">Algorithm
+      <select #algorithmInput [value]="algorithm()" (change)="algorithm.set(algorithmInput.value)">
+        @for (item of sim.algorithms(); track item.id) {
+          <option [value]="item.id" [disabled]="!item.enabled">{{ item.label }}{{ item.enabled ? '' : ' · template' }}</option>
+        }
+      </select>
+    </label>
+    <label>Heuristic / exploration priority
+      <select #heuristicInput [value]="heuristic()" (change)="heuristic.set(heuristicInput.value)">
+        <option value="zero">Zero (Dijkstra)</option><option value="l1">L1 · Manhattan</option>
+        <option value="l2">L2 · Euclidean</option><option value="linf">L∞ · Chebyshev</option>
+        <option value="squared_l2">Squared L2</option><option value="mse">MSE</option>
+      </select>
+    </label>
+    <label>Turn interval (ms)<input #speedInput type="number" min="50" max="5000" step="50" [value]="interval()" (input)="interval.set(speedInput.valueAsNumber)"></label>
+    <label>Maximum turns<input #limitInput type="number" min="1" max="10000" step="1" [value]="maxTurns()" (input)="maxTurns.set(limitInput.valueAsNumber)"></label>
+  </fieldset>
+  <p class="help">{{ selectedAlgorithm()?.description }} Settings apply when creating or resetting a run.</p>
+  @if (heuristic() === 'mse' || heuristic() === 'squared_l2') {
+    <p class="help">Squared L2 and MSE can overestimate path cost; A* optimality is not guaranteed with these heuristics.</p>
+  }
+  <div class="actions">
+    <button hlmBtn variant="outline" [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal || !configValid() || !selectedAlgorithm()?.enabled"
+      (click)="create()">{{ sim.state()?.run ? 'Reset run' : 'Create run' }}</button>
+    <button hlmBtn [disabled]="sim.busy() || !paused()" (click)="replay.set(null); sim.control('step')">Step</button>
+    <button hlmBtn [disabled]="sim.busy() || !paused()" (click)="replay.set(null); sim.control('run')">Run</button>
+    <button hlmBtn variant="outline" [disabled]="sim.busy() || !running()" (click)="sim.control('pause')">Pause</button>
+    <button hlmBtn variant="outline" [disabled]="sim.busy() || !sim.locked()" (click)="sim.control('stop')">End run</button>
+  </div>
+  @if (!sim.scenario().start || !sim.scenario().goal) { <p class="help">Place a start and goal in the Environment tab to create a run.</p> }
+  @if (sim.error() || sim.state()?.error) { <p class="error" role="alert">{{ sim.error() || sim.state()?.error }}</p> }
+  @if (sim.connectionError()) { <p class="error" role="alert">{{ sim.connectionError() }}</p> }
+
+  <div class="execution-layout">
+    <div class="map-panel">
+      <div class="map-heading"><h3>{{ knowledgeOnly() ? 'Agent knowledge' : 'Full environment' }}</h3>
+        <label class="check"><input type="checkbox" [checked]="knowledgeOnly()" (change)="knowledgeOnly.set(!knowledgeOnly())"> Hide undiscovered cells</label>
+      </div>
+      @if (sim.runGrid() ?? env.grid(); as grid) {
+        <app-simulation-grid [grid]="grid" [start]="sim.state()?.run?.start ?? sim.scenario().start"
+          [goal]="observation()?.goal ?? sim.scenario().goal" [agent]="observation()?.position ?? null"
+          [knowledge]="knowledgeOnly() ? knowledge() : null" [trail]="trail()" [trace]="trace()" />
+      }
+      <div class="map-legend"><span><b class="teal">A</b> Agent / movement trail</span><span><b class="amber">G</b> Goal / proposed path</span><span>Small numbers = visits</span></div>
+      <label class="check trace-toggle"><input type="checkbox" [checked]="showTrace()" (change)="showTrace.set(!showTrace())"> Show search trace (gray = expanded, dashed = frontier)</label>
+      @if (sim.state()?.run) {
+        <div class="replay">
+          <label for="turn-replay">{{ replay() === null ? 'Live' : 'Replay' }} · turn {{ observation()?.turn ?? 0 }}</label>
+          <input #replayInput id="turn-replay" type="range" min="0" [max]="sim.history().at(-1)?.turn ?? 0" step="1"
+            [value]="replay() ?? (sim.history().at(-1)?.turn ?? 0)" (input)="replay.set(replayInput.valueAsNumber)">
+          <button hlmBtn variant="outline" (click)="replay.set(null)">Live</button>
+        </div>
+      }
+    </div>
+    <aside aria-label="Observation details">
+      @if (observation(); as observation) {
+        <h3>Turn {{ observation.turn }} observation</h3>
+        <dl class="metrics">
+          <div><dt>Position</dt><dd>({{ observation.position.x }}, {{ observation.position.y }})</dd></div>
+          <div><dt>Goal</dt><dd>({{ observation.goal.x }}, {{ observation.goal.y }})</dd></div>
+          <div><dt>Travel cost</dt><dd>{{ cost() | number:'1.0-2' }}</dd></div>
+          @for (metric of metrics; track metric) {
+            <div><dt>{{ metric }}</dt><dd>{{ observation.goal_distances[metric] | number:'1.0-3' }}</dd></div>
+          }
+        </dl>
+        <h3>Visible neighbors</h3>
+        <ul class="neighbors">
+          @for (neighbor of observation.neighbors; track neighbor.position.x + ',' + neighbor.position.y) {
+            <li><span>({{ neighbor.position.x }}, {{ neighbor.position.y }})</span><span>cost {{ neighbor.movement_cost }} · L1 {{ neighbor.goal_distances['l1'] }}</span></li>
+          } @empty { <li>No walkable neighbor</li> }
+        </ul>
+        @if (replay() === null ? sim.history().at(-1) : displayedEvent(); as event) {
+          <h3>Decision</h3><p class="decision">{{ event.explanation || event.reason || event.action }}</p>
+          @if (trace()?.scores?.length) { <details><summary>Search scores (g / h / f)</summary><pre>{{ trace()?.scores | json }}</pre></details> }
+        }
+      } @else { <h3>Ready to explore</h3><p class="help">Create a run, then step through each decision. The example uses breadth-first planning on discovered cells.</p> }
+    </aside>
+  </div>
+  <div class="history-heading"><h3>Movement and decision history</h3><span>{{ sim.history().length }} / {{ sim.state()?.history_count ?? 0 }} records loaded</span></div>
+  <div class="history-scroll">
+    <table><caption class="sr-only">Select a turn to replay its observation and search trace</caption>
+      <thead><tr><th>Turn</th><th>Action</th><th>Movement</th><th>Cost</th><th>Decision</th></tr></thead>
+      <tbody>
+        @for (event of sim.history(); track event.sequence) {
+          <tr [class.selected]="replay() === event.turn">
+            <td><button type="button" class="turn-link" (click)="replay.set(event.turn)" [attr.aria-label]="'Replay turn ' + event.turn">{{ event.turn }}</button></td>
+            <td>{{ event.action }}</td><td class="position">({{ event.from.x }}, {{ event.from.y }}) → ({{ event.to.x }}, {{ event.to.y }})</td>
+            <td>+{{ event.step_cost }} / {{ event.cumulative_cost }}</td><td>{{ event.reason || event.explanation }}</td>
+          </tr>
+        } @empty { <tr><td colspan="5" class="empty">No turns yet. Click Step to record the first decision.</td></tr> }
+      </tbody>
+    </table>
   </div>
 </section>

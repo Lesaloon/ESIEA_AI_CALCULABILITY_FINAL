@@ -1,0 +1,15 @@
+<fieldset [disabled]="sim.locked() || sim.busy() || env.busy() || !env.grid()">
+  <legend>Start and goal</legend>
+  <div class="coordinate-inputs">
+    <label>Start x <input #sxInput type="number" min="0" [max]="(env.grid()?.width ?? 1) - 1" step="1" [value]="sx()" (input)="sx.set(sxInput.valueAsNumber)"></label>
+    <label>Start y <input #syInput type="number" min="0" [max]="(env.grid()?.height ?? 1) - 1" step="1" [value]="sy()" (input)="sy.set(syInput.valueAsNumber)"></label>
+  </div>
+  <div class="coordinate-inputs">
+    <label>Goal x <input #gxInput type="number" min="0" [max]="(env.grid()?.width ?? 1) - 1" step="1" [value]="gx()" (input)="gx.set(gxInput.valueAsNumber)"></label>
+    <label>Goal y <input #gyInput type="number" min="0" [max]="(env.grid()?.height ?? 1) - 1" step="1" [value]="gy()" (input)="gy.set(gyInput.valueAsNumber)"></label>
+  </div>
+  <button hlmBtn variant="outline" [disabled]="!valid()" (click)="apply()">Set coordinates</button>
+  <button hlmBtn [variant]="env.editMode() === 'start' ? 'default' : 'outline'" [attr.aria-pressed]="env.editMode() === 'start'" (click)="env.editMode.set('start')">Place start on grid</button>
+  <button hlmBtn [variant]="env.editMode() === 'goal' ? 'default' : 'outline'" [attr.aria-pressed]="env.editMode() === 'goal'" (click)="env.editMode.set('goal')">Place goal on grid</button>
+</fieldset>
+<p>{{ sim.locked() ? 'Scenario locked. Use End run in the Agent tab to edit the grid or endpoints.' : 'Choose walkable cells. S = configured start · G = goal · A = current agent position.' }}</p>

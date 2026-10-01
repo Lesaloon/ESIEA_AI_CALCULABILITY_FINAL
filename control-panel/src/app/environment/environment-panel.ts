@@ -3,11 +3,11 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { EnvironmentStore } from './environment-store';
 import { GridControls } from './grid-controls';
 import { EnvironmentGrid } from './environment-grid';
+import { ScenarioControls } from '../scenario-controls';
 
 @Component({
   selector: 'app-environment-panel',
-  imports: [HlmButton, GridControls, EnvironmentGrid],
-  providers: [EnvironmentStore],
+  imports: [HlmButton, GridControls, EnvironmentGrid, ScenarioControls],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './environment-panel.html',
   styleUrl: './environment-panel.css',
