@@ -10,19 +10,18 @@ Docker Compose scaffold for the architecture in `docs/archi.png`.
 | Python environment | `environment/` | `http://localhost:8000` |
 | Python agent | `agent/` | `http://localhost:8001` |
 
-All three services share the `simulation` bridge network. The agent connects
-to the environment's gRPC server at `environment:50051`; this port is not
-published to the host. This assumes the environment is the gRPC server and
-the agent is its client, which can also support bidirectional streaming.
-The control panel is assumed to control both Python services over HTTP.
+All three services share the `simulation` bridge network. The agent is configured
+to connect to a future environment gRPC server at `environment:50051`; this port
+is not published to the host. The gRPC server is not implemented yet.
+The control panel is intended to control both Python services over HTTP.
 
 ## Application requirements
 
 Each application folder contains a Dockerfile: Nginx for the control panel
 and Python slim for the environment and agent. Control-panel and agent
 code and startup commands still need to be added. For now, Nginx
-serves its default page. The environment initializes a NetworkX grid and exits;
-the agent also exits without starting a service.
+serves its default page. The environment initializes a NetworkX grid and starts
+a FastAPI HTTP server; the agent exits without starting a service.
 
 - Build the Angular application and copy its static output into Nginx's
   `/usr/share/nginx/html` directory. Nginx listens on port `80` inside its
@@ -41,14 +40,38 @@ The host ports bind to loopback for local development.
 
 ## Commands
 
-Run the environment bootstrap locally:
+Run the environment server locally from the project root:
 
 ```sh
+python -m venv .venv
+source .venv/bin/activate
 python -m pip install -r environment/requirements.txt
 python -m environment.main
 ```
 
-The bootstrap creates a 10×10 `Grid`. Its `graph` attribute is a NetworkX graph
+The server defaults to `http://127.0.0.1:8000`. Override its bind address and port
+with `HTTP_HOST` and `HTTP_PORT`; Docker uses `0.0.0.0:8000`.
+
+- `GET /health`: server health status.
+- `GET /grid`: grid dimensions and node/edge counts.
+- `POST /grid/obstacles/{x}/{y}`: remove a cell and its edges to create an
+  obstacle. Returns `201` with `{"x": x, "y": y}`, `404` for out-of-bounds
+  coordinates, or `409` if the cell is already an obstacle.
+- `/docs`: interactive Swagger UI.
+- `/redoc`: alternative API documentation.
+
+CORS allows the control panel origin `http://localhost:4200` for GET and POST requests.
+
+For example, add an obstacle at `(3, 4)`:
+
+```sh
+curl -X POST http://localhost:8000/grid/obstacles/3/4
+```
+
+For development with automatic reload, run
+`python -m uvicorn environment.main:app --reload --host 127.0.0.1 --port 8000`.
+
+Startup creates a 10×10 `Grid`. Its `graph` attribute is a NetworkX graph
 with `(x, y)` nodes and horizontal/vertical edges, without wrapping at boundaries.
 Import the library with `from environment.grid import Grid` from the project root.
 
