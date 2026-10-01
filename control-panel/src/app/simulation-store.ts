@@ -20,7 +20,7 @@ export interface TurnEvent {
 export interface RunConfig { algorithm: string; heuristic: string; interval_ms: number; max_turns: number; }
 export interface AgentState {
   status: string; error: string; config: RunConfig | null; knowledge: KnownCell[]; history_count: number;
-  initial_observation: Observation | null;
+  initial_observation: Observation | null; final_path: Position[];
   run: { run_id: string; status: string; observation: Observation; cumulative_cost: number; start: Position } | null;
 }
 export interface Algorithm { id: string; label: string; description: string; enabled: boolean; }

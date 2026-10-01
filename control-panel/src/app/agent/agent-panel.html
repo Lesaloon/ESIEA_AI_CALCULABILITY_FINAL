@@ -85,6 +85,23 @@
       } @else { <h3>Ready to explore</h3><p class="help">Create a run, then step through each decision. The example uses breadth-first planning on discovered cells.</p> }
     </aside>
   </div>
+  @if (chosenPath().length) {
+    <section class="chosen-path" aria-labelledby="chosen-path-title">
+      <div class="chosen-path-heading">
+        <h3 id="chosen-path-title">Chosen path</h3>
+        <span>{{ chosenPath().length - 1 }} planned moves</span>
+      </div>
+      <p>The complete route selected by the planner once the goal became reachable. It is highlighted in amber on the grid.</p>
+      <ol aria-label="Chosen path coordinates">
+        @for (point of chosenPath(); track $index; let step = $index; let last = $last) {
+          <li [attr.aria-label]="'Step ' + step + ': ' + point.x + ', ' + point.y">
+            <span>({{ point.x }}, {{ point.y }})</span>
+            @if (!last) { <span class="path-arrow" aria-hidden="true">→</span> }
+          </li>
+        }
+      </ol>
+    </section>
+  }
   <div class="history-heading"><h3>Movement and decision history</h3><span>{{ sim.history().length }} / {{ sim.state()?.history_count ?? 0 }} records loaded</span></div>
   <div class="history-scroll">
     <table><caption class="sr-only">Select a turn to replay its observation and search trace</caption>

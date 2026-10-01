@@ -11,6 +11,9 @@ class Explorer:
     def reset(self, config):
         self.config = config
 
+    def final_path(self, start, goal, knowledge):
+        return self.planner.plan(knowledge, start, goal).path
+
     def decide(self, observation, knowledge):
         if observation.goal_reached:
             return Decision(Stop('Goal reached'))
