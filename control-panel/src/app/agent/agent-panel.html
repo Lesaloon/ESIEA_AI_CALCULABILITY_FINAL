@@ -10,7 +10,7 @@
     <label class="algorithm">Algorithm
       <select #algorithmInput [value]="algorithm()" (change)="algorithm.set(algorithmInput.value)">
         @for (item of sim.algorithms(); track item.id) {
-          <option [value]="item.id" [disabled]="!item.enabled">{{ item.label }}{{ item.enabled ? '' : ' · template' }}</option>
+          <option [value]="item.id" [disabled]="!item.enabled">{{ item.label }}</option>
         }
       </select>
     </label>
@@ -82,7 +82,7 @@
           <h3>Decision</h3><p class="decision">{{ event.explanation || event.reason || event.action }}</p>
           @if (trace()?.scores?.length) { <details><summary>Search scores (g / h / f)</summary><pre>{{ trace()?.scores | json }}</pre></details> }
         }
-      } @else { <h3>Ready to explore</h3><p class="help">Create a run, then step through each decision. The example uses breadth-first planning on discovered cells.</p> }
+      } @else { <h3>Ready to explore</h3><p class="help">Create a run, then step through each decision.</p> }
     </aside>
   </div>
   <div class="history-heading"><h3>Movement and decision history</h3><span>{{ sim.history().length }} / {{ sim.state()?.history_count ?? 0 }} records loaded</span></div>
