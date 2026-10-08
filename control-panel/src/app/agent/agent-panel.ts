@@ -30,11 +30,17 @@ export class AgentPanel {
     : this.replay() === 0 ? this.sim.state()?.initial_observation ?? null : this.displayedEvent()?.observation ?? null);
   readonly knowledge = computed(() => this.replay() === null ? this.sim.state()?.knowledge ?? []
     : this.replay() === 0 ? this.sim.initialKnowledge() : this.displayedEvent()?.knowledge ?? []);
+  readonly chosenPath = computed(() => {
+    const state = this.sim.state();
+    if (!state?.run || !['succeeded', 'stopped', 'limit_reached'].includes(state.status)) return [];
+    return state.final_path;
+  });
   readonly trace = computed(() => {
     if (!this.showTrace()) return null;
     if (this.replay() !== null) return this.displayedEvent()?.trace ?? null;
     const event = this.sim.history().at(-1);
-    return event?.turn === this.observation()?.turn ? event?.trace ?? null : null;
+    if (!event || event.turn !== this.observation()?.turn) return null;
+    return this.chosenPath().length ? { ...event.trace, candidate_path: this.chosenPath() } : event.trace;
   });
   readonly trail = computed(() => {
     const start = this.sim.state()?.run?.start;

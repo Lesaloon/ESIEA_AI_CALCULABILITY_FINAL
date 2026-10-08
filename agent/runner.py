@@ -23,6 +23,8 @@ def trace_dict(trace):
 
 
 class Runner:
+    """Coordinate agent decisions, environment turns, and replay history."""
+
     def __init__(self, client):
         self.client = client
         self.lock = asyncio.Lock()
@@ -36,11 +38,21 @@ class Runner:
         self.pending = None
         self.config = None
         self.initial_observation = None
+        self.final_path = []
 
     def snapshot(self):
         return dict(status=self.status, error=self.error, run=self.state,
                     initial_observation=self.initial_observation,
-                    config=self.config, knowledge=self.memory.snapshot(), history_count=len(self.history))
+                    config=self.config, knowledge=self.memory.snapshot(), history_count=len(self.history),
+                    final_path=[dict(x=x, y=y) for x, y in self.final_path])
+
+    def plan_final_path(self):
+        planner = getattr(self.policy, 'final_path', None)
+        if not callable(planner):
+            return []
+        start = self.state['start']
+        goal = self.state['observation']['goal']
+        return planner((start['x'], start['y']), (goal['x'], goal['y']), self.memory.view())
 
     async def create(self, config):
         if self.continuous:
@@ -59,10 +71,12 @@ class Runner:
             self.config, self.policy, self.state = config, policy, state
             self.initial_observation = state['observation']
             self.status = 'succeeded' if state['status'] == 'succeeded' else 'paused'
-            self.error, self.history, self.pending = '', [], None
+            self.error, self.history, self.pending, self.final_path = '', [], None, []
             self.memory = DiscoveredGraph()
             self.memory.observe(observation_from(state['observation']))
             self.initial_knowledge = self.memory.snapshot()
+            if self.status == 'succeeded':
+                self.final_path = self.plan_final_path()
             return self.snapshot()
 
     async def step(self, background=False):
@@ -102,6 +116,7 @@ class Runner:
                 self.error = ''
                 if event['observation']['goal_reached']:
                     self.status = self.state['status'] = 'succeeded'
+                    self.final_path = self.plan_final_path()
                 elif event['action'] == 'stop':
                     self.status = self.state['status'] = 'stopped'
                 elif event['turn'] >= self.config['max_turns']:

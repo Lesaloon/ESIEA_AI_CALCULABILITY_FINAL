@@ -33,6 +33,14 @@ dt { color: var(--muted-foreground); } dd, .neighbors, .position { font-family: 
 .neighbors li { font-size: 11px; }
 .decision { font-size: 13px; line-height: 1.6; margin-top: 8px; }
 details { margin-top: 12px; font-size: 12px; } pre { overflow: auto; max-height: 220px; font-size: 11px; }
+.chosen-path { border: 1px solid #b8d7d9; background: #f1f8f8; border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+.chosen-path-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.chosen-path-heading span { font: 11px ui-monospace, monospace; color: var(--muted-foreground); }
+.chosen-path p { margin: 6px 0 12px; color: var(--muted-foreground); font-size: 12px; }
+.chosen-path ol { display: flex; align-items: center; gap: 8px; overflow-x: auto; list-style: none; margin: 0; padding: 2px 0 8px; }
+.chosen-path li { display: flex; align-items: center; gap: 8px; flex: none; font: 12px ui-monospace, monospace; }
+.chosen-path li > span:first-child { padding: 5px 8px; border: 1px solid #8bbec1; border-radius: 4px; background: white; color: #056066; }
+.path-arrow { color: var(--muted-foreground); }
 .history-heading { border-top: 1px solid var(--border); padding-top: 20px; }
 .history-heading span { font: 11px ui-monospace, monospace; color: var(--muted-foreground); }
 .history-scroll { overflow: auto; max-height: 350px; margin-top: 12px; }

@@ -134,6 +134,10 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
             self.assertTrue(event['trace']['candidate_path'])
         self.assertEqual(position, {'x': 2, 'y': 2})
         self.assertEqual(state['run']['cumulative_cost'], cost)
+        self.assertEqual(state['final_path'][0], {'x': 0, 'y': 0})
+        self.assertEqual(state['final_path'][-1], {'x': 2, 'y': 2})
+        for origin, target in zip(state['final_path'], state['final_path'][1:]):
+            self.assertEqual(abs(origin['x'] - target['x']) + abs(origin['y'] - target['y']), 1)
         self.assertEqual((await self.env.get('/scenario')).json()['locked'], False)
         await self.create()
         self.assertEqual((await self.agent.get('/history')).json()['events'], [])
