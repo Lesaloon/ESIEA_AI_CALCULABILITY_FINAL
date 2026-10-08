@@ -1,62 +1,59 @@
 """Weighted shortest-path planners for the discovered graph."""
 
-from heapq import heappop, heappush
-from math import inf
+import heapq
 
 from agent.distances import distance
 from agent.models import DiscoveredGraphView, PlanningResult, Position, SearchTrace
-
-
-def _path_to(parent: dict[Position, Position | None], target: Position) -> list[Position]:
-    path = []
-    node = target
-    while node is not None:
-        path.append(node)
-        node = parent[node]
-    return list(reversed(path))
 
 
 class DijkstraPlanner:
     """Find minimum-cost paths with Dijkstra's shortest-path algorithm."""
 
     def plan(self, graph: DiscoveredGraphView, start: Position, target: Position) -> PlanningResult:
-        costs = {start: 0.0}
-        parent: dict[Position, Position | None] = {start: None}
-        frontier = [(0.0, start)]
+        # 1. Initialisation
+        heap = [(0, start)]
+        best = {start: 0}
+        parent = {start: None}
         settled = set()
         expanded = []
 
-        while frontier:
-            cost, node = heappop(frontier)
-            if cost != costs[node] or node in settled:
+        while heap:
+            # 2. Extraction du nœud le moins cher
+            cost, node = heapq.heappop(heap)
+            if node in settled:
                 continue
+
+            # 3. Coût du nœud devenu définitif
             settled.add(node)
             expanded.append(node)
 
+            # 4. Test de la cible et reconstruction du chemin
             if node == target:
-                path = _path_to(parent, target)
-                remaining = sorted(
-                    (candidate for candidate in costs if candidate not in settled),
-                    key=lambda candidate: (costs[candidate], candidate),
-                )
-                scores = [
-                    {'x': x, 'y': y, 'g': costs[(x, y)], 'h': 0, 'f': costs[(x, y)]}
-                    for x, y in sorted(costs)
-                ]
-                return PlanningResult(path, SearchTrace(expanded, remaining, path, scores))
+                path = []
+                while node is not None:
+                    path.append(node)
+                    node = parent[node]
+                path.reverse()
+                return PlanningResult(path, self._trace(heap, best, settled, expanded, path))
 
-            for neighbor, movement_cost in sorted(graph.edges.get(node, {}).items()):
-                candidate_cost = cost + movement_cost
-                if candidate_cost < costs.get(neighbor, inf):
-                    costs[neighbor] = candidate_cost
+            # 5. Relaxation des arêtes sortantes
+            for neighbor, step in graph.edges.get(node, {}).items():
+                new_cost = cost + step
+                if neighbor not in best or new_cost < best[neighbor]:
+                    best[neighbor] = new_cost
                     parent[neighbor] = node
-                    heappush(frontier, (candidate_cost, neighbor))
+                    heapq.heappush(heap, (new_cost, neighbor))
 
-        scores = [
-            {'x': x, 'y': y, 'g': costs[(x, y)], 'h': 0, 'f': costs[(x, y)]}
-            for x, y in sorted(costs)
-        ]
-        return PlanningResult([], SearchTrace(expanded, scores=scores))
+        # 6. Échec
+        return PlanningResult([], SearchTrace(expanded))
+
+    def _trace(self, heap, best, settled, expanded, path):
+        waiting = {}
+        for _, node in sorted(heap):
+            if node not in settled and node not in waiting:
+                waiting[node] = best[node]
+        scores = [{'x': x, 'y': y, 'g': g} for (x, y), g in waiting.items()]
+        return SearchTrace(expanded, list(waiting), path, scores)
 
 
 class AStarPlanner:
@@ -66,47 +63,46 @@ class AStarPlanner:
         self.heuristic = heuristic
 
     def plan(self, graph: DiscoveredGraphView, start: Position, target: Position) -> PlanningResult:
-        start_h = distance(start, target, self.heuristic)
-        costs = {start: 0.0}
-        heuristics = {start: start_h}
-        parent: dict[Position, Position | None] = {start: None}
-        frontier = [(start_h, start, 0.0)]
-        expanded_at: dict[Position, float] = {}
+        # 1. Initialisation
+        h_start = distance(start, target, self.heuristic)
+        heap = [(h_start, h_start, start, 0)]
+        best = {start: 0}
+        parent = {start: None}
         expanded = []
 
-        while frontier:
-            _, node, cost = heappop(frontier)
-            if cost != costs[node] or expanded_at.get(node, inf) <= cost:
+        while heap:
+            # 2. Extraction du nœud de plus petit f
+            _, _, node, g = heapq.heappop(heap)
+            if g > best[node]:
                 continue
-            expanded_at[node] = cost
+
+            # 3. Expansion du nœud
             expanded.append(node)
 
+            # 4. Test de la cible et reconstruction du chemin
             if node == target:
-                path = _path_to(parent, target)
-                remaining = sorted(
-                    (candidate for candidate in costs
-                     if costs[candidate] < expanded_at.get(candidate, inf)),
-                    key=lambda candidate: (costs[candidate] + heuristics[candidate], candidate),
-                )
-                scores = [
-                    {'x': x, 'y': y, 'g': costs[(x, y)], 'h': heuristics[(x, y)],
-                     'f': costs[(x, y)] + heuristics[(x, y)]}
-                    for x, y in sorted(costs)
-                ]
-                return PlanningResult(path, SearchTrace(expanded, remaining, path, scores))
+                path = []
+                while node is not None:
+                    path.append(node)
+                    node = parent[node]
+                path.reverse()
+                return PlanningResult(path, self._trace(heap, best, expanded, path))
 
-            for neighbor, movement_cost in sorted(graph.edges.get(node, {}).items()):
-                candidate_cost = cost + movement_cost
-                if candidate_cost < costs.get(neighbor, inf):
-                    heuristic = distance(neighbor, target, self.heuristic)
-                    costs[neighbor] = candidate_cost
-                    heuristics[neighbor] = heuristic
+            # 5. Relaxation avec f = g + h
+            for neighbor, step in graph.edges.get(node, {}).items():
+                new_g = g + step
+                if neighbor not in best or new_g < best[neighbor]:
+                    best[neighbor] = new_g
                     parent[neighbor] = node
-                    heappush(frontier, (candidate_cost + heuristic, neighbor, candidate_cost))
+                    h = distance(neighbor, target, self.heuristic)
+                    heapq.heappush(heap, (new_g + h, h, neighbor, new_g))
 
-        scores = [
-            {'x': x, 'y': y, 'g': costs[(x, y)], 'h': heuristics[(x, y)],
-             'f': costs[(x, y)] + heuristics[(x, y)]}
-            for x, y in sorted(costs)
-        ]
-        return PlanningResult([], SearchTrace(expanded, scores=scores))
+        # 6. Échec
+        return PlanningResult([], SearchTrace(expanded))
+
+    def _trace(self, heap, best, expanded, path):
+        waiting = {}
+        for f, h, node, g in sorted(heap):
+            if g == best[node] and node not in waiting:
+                waiting[node] = {'x': node[0], 'y': node[1], 'g': g, 'h': h, 'f': f}
+        return SearchTrace(expanded, list(waiting), path, list(waiting.values()))
