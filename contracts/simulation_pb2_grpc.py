@@ -54,6 +54,11 @@ class EnvironmentStub(object):
                 request_serializer=contracts_dot_simulation__pb2.RunRequest.SerializeToString,
                 response_deserializer=contracts_dot_simulation__pb2.RunState.FromString,
                 _registered_method=True)
+        self.GetRunGrid = channel.unary_unary(
+                '/simulation.v1.Environment/GetRunGrid',
+                request_serializer=contracts_dot_simulation__pb2.RunRequest.SerializeToString,
+                response_deserializer=contracts_dot_simulation__pb2.GridSnapshot.FromString,
+                _registered_method=True)
         self.GetTurnEvents = channel.unary_unary(
                 '/simulation.v1.Environment/GetTurnEvents',
                 request_serializer=contracts_dot_simulation__pb2.EventsRequest.SerializeToString,
@@ -93,6 +98,12 @@ class EnvironmentServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetRunGrid(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetTurnEvents(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -127,6 +138,11 @@ def add_EnvironmentServicer_to_server(servicer, server):
                     servicer.GetRunState,
                     request_deserializer=contracts_dot_simulation__pb2.RunRequest.FromString,
                     response_serializer=contracts_dot_simulation__pb2.RunState.SerializeToString,
+            ),
+            'GetRunGrid': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRunGrid,
+                    request_deserializer=contracts_dot_simulation__pb2.RunRequest.FromString,
+                    response_serializer=contracts_dot_simulation__pb2.GridSnapshot.SerializeToString,
             ),
             'GetTurnEvents': grpc.unary_unary_rpc_method_handler(
                     servicer.GetTurnEvents,
@@ -247,6 +263,33 @@ class Environment(object):
             '/simulation.v1.Environment/GetRunState',
             contracts_dot_simulation__pb2.RunRequest.SerializeToString,
             contracts_dot_simulation__pb2.RunState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRunGrid(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/simulation.v1.Environment/GetRunGrid',
+            contracts_dot_simulation__pb2.RunRequest.SerializeToString,
+            contracts_dot_simulation__pb2.GridSnapshot.FromString,
             options,
             channel_credentials,
             insecure,

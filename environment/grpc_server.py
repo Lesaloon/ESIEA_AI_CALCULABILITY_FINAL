@@ -1,4 +1,4 @@
-"""gRPC adapter: no global-map access is exposed to agents."""
+"""gRPC adapter for run state, actions, and opt-in frozen grid access."""
 
 import os
 
@@ -43,6 +43,17 @@ class EnvironmentService(rpc.EnvironmentServicer):
             self.sim.require_run(request.run_id or (self.sim.run or {}).get('run_id', ''))
             return self.sim.state()
         return await self.execute(context, operation, pb.RunState())
+
+    async def GetRunGrid(self, request, context):
+        def operation():
+            self.sim.require_run(request.run_id)
+            snapshot = self.sim.run['grid_snapshot']
+            return dict(width=snapshot['width'], height=snapshot['height'], walkable_cells=[
+                dict(position=dict(x=x, y=y), weight=snapshot['weights'][y][x])
+                for y, row in enumerate(snapshot['cells'])
+                for x, cell in enumerate(row) if cell != 'obstacle'
+            ])
+        return await self.execute(context, operation, pb.GridSnapshot())
 
     async def GetTurnEvents(self, request, context):
         def operation():

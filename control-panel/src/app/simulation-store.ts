@@ -17,7 +17,9 @@ export interface TurnEvent {
   step_cost: number; cumulative_cost: number; observation: Observation;
   reason: string; explanation: string; trace: Trace; knowledge: KnownCell[];
 }
-export interface RunConfig { algorithm: string; heuristic: string; interval_ms: number; max_turns: number; }
+export interface RunConfig {
+  algorithm: string; heuristic: string; full_knowledge: boolean; interval_ms: number; max_turns: number;
+}
 export interface AgentState {
   status: string; error: string; config: RunConfig | null; knowledge: KnownCell[]; history_count: number;
   initial_observation: Observation | null; final_path: Position[];

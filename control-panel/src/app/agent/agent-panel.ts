@@ -17,6 +17,7 @@ export class AgentPanel {
   readonly env = inject(EnvironmentStore);
   readonly algorithm = signal('example');
   readonly heuristic = signal('l1');
+  readonly fullKnowledge = signal(false);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -62,6 +63,7 @@ export class AgentPanel {
         this.replay.set(null);
         if (state?.config) {
           this.algorithm.set(state.config.algorithm); this.heuristic.set(state.config.heuristic);
+          this.fullKnowledge.set(state.config.full_knowledge);
           this.interval.set(state.config.interval_ms); this.maxTurns.set(state.config.max_turns);
         }
       }
@@ -71,6 +73,6 @@ export class AgentPanel {
   async create() {
     this.replay.set(null);
     await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(),
-      interval_ms: this.interval(), max_turns: this.maxTurns() });
+      full_knowledge: this.fullKnowledge(), interval_ms: this.interval(), max_turns: this.maxTurns() });
   }
 }

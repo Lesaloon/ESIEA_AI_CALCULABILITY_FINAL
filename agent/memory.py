@@ -1,4 +1,4 @@
-"""Build read-only views exclusively from local observations."""
+"""Build read-only graph views from observations or an opted-in grid snapshot."""
 
 from types import MappingProxyType
 from agent.models import DiscoveredGraphView
@@ -23,6 +23,17 @@ class DiscoveredGraph:
             self.edges[current][node] = neighbor.movement_cost
             # Four-way connectivity is symmetric, but movement costs are not.
             self.edges.setdefault(node, {})[current] = observation.current_cell_weight
+
+    def seed(self, snapshot):
+        weights = {(cell['position']['x'], cell['position']['y']): cell['weight']
+                   for cell in snapshot['walkable_cells']}
+        self.weights.update(weights)
+        for node in weights:
+            self.edges.setdefault(node, {})
+            x, y = node
+            for neighbor in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if neighbor in weights:
+                    self.edges[node][neighbor] = weights[neighbor]
 
     def view(self):
         return DiscoveredGraphView(

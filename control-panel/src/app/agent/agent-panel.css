@@ -13,6 +13,8 @@ h3 { font-size: 14px; font-weight: 600; }
 .configuration .algorithm { flex: 1; min-width: 230px; }
 select, .configuration input { border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: white; color: var(--foreground); font-size: 13px; }
 .configuration input { width: 110px; }
+.configuration .full-knowledge { align-self: end; display: flex; min-height: 35px; align-items: center; }
+.configuration .full-knowledge input { width: auto; }
 select:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
 .error { color: var(--destructive); font-size: 13px; margin: 12px 0; }

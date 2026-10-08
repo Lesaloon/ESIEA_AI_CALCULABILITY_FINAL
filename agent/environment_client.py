@@ -57,5 +57,8 @@ class EnvironmentClient:
     async def current(self):
         return await self.call(self.stub.GetRunState, pb.RunRequest())
 
+    async def grid(self, run_id):
+        return await self.call(self.stub.GetRunGrid, pb.RunRequest(run_id=run_id))
+
     async def close(self):
         await self.channel.close()

@@ -48,11 +48,13 @@ class Runner:
 
     def plan_final_path(self):
         planner = getattr(self.policy, 'final_path', None)
-        if not callable(planner):
-            return []
         start = self.state['start']
         goal = self.state['observation']['goal']
-        return planner((start['x'], start['y']), (goal['x'], goal['y']), self.memory.view())
+        start, goal = (start['x'], start['y']), (goal['x'], goal['y'])
+        if callable(planner):
+            return planner(start, goal, self.memory.view())
+        planner = getattr(getattr(self.policy, 'planner', None), 'plan', None)
+        return planner(self.memory.view(), start, goal).path if callable(planner) else []
 
     async def create(self, config):
         if self.continuous:
@@ -74,6 +76,8 @@ class Runner:
             self.error, self.history, self.pending, self.final_path = '', [], None, []
             self.memory = DiscoveredGraph()
             self.memory.observe(observation_from(state['observation']))
+            if config['full_knowledge']:
+                self.memory.seed(await self.client.grid(state['run_id']))
             self.initial_knowledge = self.memory.snapshot()
             if self.status == 'succeeded':
                 self.final_path = self.plan_final_path()

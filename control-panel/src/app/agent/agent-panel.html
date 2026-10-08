@@ -3,7 +3,7 @@
     <div><p class="eyebrow">Local-observation laboratory</p><h2 id="agent-title">Agent execution</h2></div>
     <span class="availability" role="status">{{ sim.state()?.status ?? 'Connecting…' }}</span>
   </header>
-  <p class="intro">One turn, one decision. The agent sees its coordinates, the goal, and its walkable neighbors. Everything else must be discovered.</p>
+  <p class="intro">One turn, one decision. By default the agent sees its coordinates, the goal, and its walkable neighbors. Full knowledge can be enabled for heuristic experiments.</p>
 
   <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
     <legend class="sr-only">Run configuration</legend>
@@ -16,15 +16,16 @@
     </label>
     <label>Heuristic / exploration priority
       <select #heuristicInput [value]="heuristic()" (change)="heuristic.set(heuristicInput.value)">
-        <option value="zero">Zero (Dijkstra)</option><option value="l1">L1 · Manhattan</option>
+        <option value="zero">Zero · no estimate</option><option value="l1">L1 · Manhattan</option>
         <option value="l2">L2 · Euclidean</option><option value="linf">L∞ · Chebyshev</option>
         <option value="squared_l2">Squared L2</option><option value="mse">MSE</option>
       </select>
     </label>
     <label>Turn interval (ms)<input #speedInput type="number" min="50" max="5000" step="50" [value]="interval()" (input)="interval.set(speedInput.valueAsNumber)"></label>
     <label>Maximum turns<input #limitInput type="number" min="1" max="10000" step="1" [value]="maxTurns()" (input)="maxTurns.set(limitInput.valueAsNumber)"></label>
+    <label class="check full-knowledge"><input type="checkbox" [checked]="fullKnowledge()" (change)="fullKnowledge.set(!fullKnowledge())"> Give agent the full grid</label>
   </fieldset>
-  <p class="help">{{ selectedAlgorithm()?.description }} Settings apply when creating or resetting a run.</p>
+  <p class="help">{{ selectedAlgorithm()?.description }} Settings apply when creating or resetting a run. Dijkstra always uses zero search estimates; this selector only changes its exploration priority while the grid is partially known.</p>
   @if (heuristic() === 'mse' || heuristic() === 'squared_l2') {
     <p class="help">Squared L2 and MSE can overestimate path cost; A* optimality is not guaranteed with these heuristics.</p>
   }

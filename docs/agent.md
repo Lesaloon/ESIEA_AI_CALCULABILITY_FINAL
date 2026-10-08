@@ -56,15 +56,15 @@ The framework passes transport-independent types from `agent/models.py`:
   `weights` includes seen walkable cells; `visited` includes positions physically
   occupied; `edges[source][destination]` contains observed/inferred movement costs.
 
-There is no arbitrary-coordinate inspection or full-map gRPC method. Missing
-neighbors indicate unavailable directions. Cells seen as neighbors are discovered
-but not fully inspected until occupied. Known adjacent connectivity is symmetric;
-entering-cell costs are directional. Never treat a missing edge between two
-unvisited cells as proof that it is blocked.
+By default there is no arbitrary-coordinate inspection. Missing neighbors indicate
+unavailable directions. Cells seen as neighbors are discovered but not fully
+inspected until occupied. Known adjacent connectivity is symmetric; entering-cell
+costs are directional. Never treat a missing edge between two unvisited cells as
+proof that it is blocked.
 
 Algorithms should use these types, not import environment internals or call the
-teacher's HTTP grid editor. The full-map/knowledge toggle is a visualization
-choice and never changes what the algorithm receives.
+teacher's HTTP grid editor. The run configuration's `full_knowledge` option seeds
+the same graph view from the frozen run grid for controlled heuristic experiments.
 
 ## Exercise 1: Dijkstra or A*
 
@@ -94,10 +94,10 @@ new local observation. Once the goal is discovered, it routes toward the goal.
 The supplied breadth-first planner gives a working example, but intentionally
 ignores weights: it finds shortest-hop paths rather than minimum-cost paths.
 
-This is **physical exploration with replanning**, not full-map search. Dijkstra
-and admissible A* find shortest routes on the graph currently known. That graph
-may omit shortcuts, and exploration adds travel. Do not claim that total travel
-or the first discovered goal route is globally optimal.
+Without `full_knowledge`, this is **physical exploration with replanning**, not
+full-map search. Dijkstra and admissible A* find shortest routes on the graph
+currently known. That graph may omit shortcuts, and exploration adds travel. Do
+not claim that total travel or the first discovered goal route is globally optimal.
 
 ### Suggested planner checks
 
@@ -194,16 +194,18 @@ these measurements accounts for unseen obstacles or weights.
 ```text
 Browser -- /api/environment HTTP --> Environment (grid + run authority)
 Browser -- /api/agent HTTP -------> Agent (runner + student policies)
-Agent   -- simulation.v1 gRPC ----> Environment (local observations + actions)
+Agent   -- simulation.v1 gRPC ----> Environment (observations + actions + opt-in grid)
 ```
 
 The environment runs FastAPI and `grpc.aio` on one event loop and shares a lock
 across grid edits, scenario configuration and turns. Use one process/worker per
 service while their state is in memory. Paused runs still lock scenario edits.
 
-gRPC exposes `StartRun`, `Observe`, `ApplyAction`, `GetRunState`, `GetTurnEvents`
-and `EndRun`. `GetRunState` with an empty run ID recovers the latest environment
-run after an agent restart. All other run requests require the matching ID.
+gRPC exposes `StartRun`, `Observe`, `ApplyAction`, `GetRunState`, `GetRunGrid`,
+`GetTurnEvents` and `EndRun`. `GetRunGrid` returns the frozen snapshot for the
+matching run and is requested only when `full_knowledge` is enabled. `GetRunState`
+with an empty run ID recovers the latest environment run after an agent restart.
+All other run requests require the matching ID.
 Start requests and actions have unique request/action IDs. Retrying the same
 action returns its original result; reusing its ID for different content fails.
 `expected_turn` rejects stale commands. The agent retains a pending decision
@@ -212,7 +214,7 @@ when a movement reply is lost, so the next Step can recover that same move.
 Agent HTTP endpoints:
 
 - `GET /algorithms`, `/state`, `/health`.
-- `POST /runs`: `algorithm`, `heuristic`, `interval_ms`, `max_turns`.
+- `POST /runs`: `algorithm`, `heuristic`, `full_knowledge`, `interval_ms`, `max_turns`.
 - `POST /step`, `/run`, `/pause`, `/stop`.
 - `GET /history?run_id=...&after_sequence=...`: up to 100 new records;
   retrieve additional pages using the last sequence. A mismatched run ID fails.

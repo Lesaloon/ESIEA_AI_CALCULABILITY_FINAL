@@ -64,6 +64,27 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             graph.view().edges[(0, 0)][(0, 1)] = 0
 
+    async def test_full_knowledge_seeds_frozen_walkable_grid(self):
+        await self.env.post('/grid/weights/0/1', json={'weight': 7})
+        await self.env.post('/grid/obstacles/1/0')
+        state = await self.create(full_knowledge=True)
+        cells = {(cell['x'], cell['y']): cell for cell in state['knowledge']}
+        self.assertEqual(len(cells), 8)
+        self.assertNotIn((1, 0), cells)
+        self.assertEqual(cells[(0, 1)]['weight'], 7)
+        self.assertEqual({node for node, cell in cells.items() if cell['visited']}, {(0, 0)})
+        graph = agent_app.state.runner.memory.view()
+        self.assertEqual(graph.edges[(0, 0)][(0, 1)], 7)
+        self.assertEqual(graph.edges[(0, 1)][(0, 0)], 1)
+
+    async def test_astar_can_switch_away_from_zero_on_reset(self):
+        state = await self.create(algorithm='astar', heuristic='zero')
+        self.assertEqual(state['config']['heuristic'], 'zero')
+        self.assertEqual(agent_app.state.runner.policy.planner.heuristic, 'zero')
+        state = await self.create(algorithm='astar', heuristic='l1')
+        self.assertEqual(state['config']['heuristic'], 'l1')
+        self.assertEqual(agent_app.state.runner.policy.planner.heuristic, 'l1')
+
     async def test_idempotency_stale_turns_and_invalid_moves(self):
         state = await self.client.start('start-once')
         self.assertEqual(await self.client.start('start-once'), state)

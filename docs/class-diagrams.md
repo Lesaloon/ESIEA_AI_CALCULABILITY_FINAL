@@ -105,6 +105,7 @@ classDiagram
     Explorer o-- AStarPlanner : uses
 ```
 
-`Runner` controls execution and records each turn. It updates
-`DiscoveredGraph` from local observations, while `Explorer` selects a target and
-delegates route calculation to the planner configured for the run.
+`Runner` controls execution and records each turn. It updates `DiscoveredGraph`
+from local observations or seeds it from the frozen run grid when full knowledge
+is enabled. `Explorer` selects a target and delegates route calculation to the
+planner configured for the run.

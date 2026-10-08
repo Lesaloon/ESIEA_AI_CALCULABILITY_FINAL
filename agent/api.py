@@ -13,6 +13,7 @@ from agent.runner import Runner, RunnerError
 class RunConfiguration(BaseModel):
     algorithm: str = 'example'
     heuristic: str = 'l1'
+    full_knowledge: bool = False
     interval_ms: int = Field(default=300, ge=50, le=5000, strict=True)
     max_turns: int = Field(default=1000, ge=1, le=10000, strict=True)
 
