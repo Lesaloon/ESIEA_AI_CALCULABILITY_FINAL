@@ -92,7 +92,8 @@ does not leak between runs.
 The supplied `Explorer` policy selects a seen, unvisited cell closest to the
 goal using the configured geometric metric, invokes your planner on the
 discovered graph, then executes **only the first move**. It replans after each
-new local observation. Once the goal is discovered, it routes toward the goal.
+new local observation. Reaching the goal does not end exploration: after every
+reachable cell has been visited, it returns to the goal and stops successfully.
 The supplied breadth-first planner gives a working example, but intentionally
 ignores weights: it finds shortest-hop paths rather than minimum-cost paths.
 
@@ -143,8 +144,9 @@ Enable the `template` entry in the registry, or register another policy factory.
 One turn is one decision and one committed result. A move increments the turn
 and charges the destination's weight (1–9); initial placement costs zero. A
 student `Stop` also records a turn with zero travel cost. An invalid action does
-not advance the turn or change the environment and pauses with an error.
-Starting at the goal completes immediately at turn zero. The maximum-turn limit
+not advance the turn or change the environment and pauses with an error. Goal
+occupancy is nonterminal so exploration can continue through it. A `Stop` at the
+goal succeeds; a `Stop` elsewhere stops without success. The maximum-turn limit
 ends the run after that many committed decisions. Manual **End run** is an
 execution control, not an algorithm decision, and does not add a movement event.
 

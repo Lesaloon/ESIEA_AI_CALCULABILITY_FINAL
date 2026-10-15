@@ -17,18 +17,17 @@ class Explorer:
         return self.planner.plan(knowledge, start, goal).path
 
     def decide(self, observation, knowledge):
-        if observation.goal_reached:
-            return Decision(Stop('Goal reached'))
-        candidates = knowledge.weights.keys() - knowledge.visited
-        if observation.goal in knowledge.weights:
-            candidates = [observation.goal]
-        else:
-            candidates = sorted(candidates, key=lambda p: (
-                distance(p, observation.goal, self.config.heuristic), p))
+        candidates = sorted(knowledge.weights.keys() - knowledge.visited - {observation.goal},
+                            key=lambda p: (distance(p, observation.goal, self.config.heuristic), p))
         for target in candidates:
             result = self.planner.plan(knowledge, observation.position, target)
             if len(result.path) > 1:
                 return Decision(Move(result.path[1]),
                                 f'Route toward {target}; reveal neighbors after one move.', result.trace)
+        if observation.goal_reached:
+            return Decision(Stop('Reachable component explored; goal reached'))
+        result = self.planner.plan(knowledge, observation.position, observation.goal)
+        if len(result.path) > 1:
+            return Decision(Move(result.path[1]), 'Exploration complete; return to the goal.', result.trace)
         return Decision(Stop('Reachable component explored; no route to the goal'),
                         'No unvisited reachable cell remains.')

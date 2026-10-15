@@ -163,12 +163,15 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         for event in history:
             self.assertEqual(event['from'], position)
             position = event['to']
-            self.assertEqual(max(abs(event['from']['x'] - position['x']), abs(event['from']['y'] - position['y'])), 1)
+            distance = max(abs(event['from']['x'] - position['x']), abs(event['from']['y'] - position['y']))
+            self.assertEqual(distance, 1 if event['action'] == 'move' else 0)
             cost += event['step_cost']
             self.assertEqual(cost, event['cumulative_cost'])
             self.assertEqual(event['observation']['position'], position)
-            self.assertTrue(event['trace']['candidate_path'])
+            if event['action'] == 'move':
+                self.assertTrue(event['trace']['candidate_path'])
         self.assertEqual(position, {'x': 2, 'y': 2})
+        self.assertTrue(all(cell['visited'] for cell in state['knowledge']))
         self.assertEqual(state['run']['cumulative_cost'], cost)
         self.assertEqual(state['final_path'][0], {'x': 0, 'y': 0})
         self.assertEqual(state['final_path'][-1], {'x': 2, 'y': 2})
@@ -196,9 +199,32 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         self.assertFalse((await self.env.get('/scenario')).json()['locked'])
         await self.configure((0, 0), (0, 0))
         state = await self.create()
-        self.assertEqual(state['status'], 'succeeded')
+        self.assertEqual(state['status'], 'paused')
         self.assertEqual(state['run']['observation']['turn'], 0)
         self.assertEqual(state['run']['cumulative_cost'], 0)
+
+    async def test_explorer_crosses_goal_to_finish_reachable_component(self):
+        await self.configure((0, 0), (1, 0))
+        await self.env.post('/grid/obstacles/stroke', json={
+            'obstacle': True,
+            'cells': [{'x': x, 'y': y} for y in (1, 2) for x in range(3)],
+        })
+        await self.create()
+        first_goal_visit = (await self.agent.post('/step')).json()
+        self.assertEqual(first_goal_visit['status'], 'paused')
+        self.assertTrue(first_goal_visit['run']['observation']['goal_reached'])
+        self.assertTrue((await self.env.get('/scenario')).json()['locked'])
+        for _ in range(3):
+            state = (await self.agent.post('/step')).json()
+        self.assertEqual(state['status'], 'succeeded')
+        self.assertEqual(state['run']['observation']['position'], {'x': 1, 'y': 0})
+        self.assertTrue(all(cell['visited'] for cell in state['knowledge']))
+        history = (await self.agent.get('/history')).json()['events']
+        self.assertEqual([event['action'] for event in history], ['move', 'move', 'move', 'stop'])
+        self.assertEqual([event['to'] for event in history[:3]], [
+            {'x': 1, 'y': 0}, {'x': 2, 'y': 0}, {'x': 1, 'y': 0},
+        ])
+        self.assertFalse((await self.env.get('/scenario')).json()['locked'])
 
     async def test_run_pause_and_resume(self):
         await self.create(interval_ms=100)
@@ -213,6 +239,45 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         self.assertEqual((await self.agent.get('/state')).json()['run']['observation']['turn'], turn)
         state = (await self.agent.post('/step')).json()
         self.assertEqual(state['run']['observation']['turn'], turn + 1)
+
+    async def test_start_at_goal_explores_before_stopping_with_each_planner(self):
+        await self.configure((0, 0), (0, 0))
+        for algorithm in ('example', 'dijkstra', 'astar'):
+            for full_knowledge in (False, True):
+                with self.subTest(algorithm=algorithm, full_knowledge=full_knowledge):
+                    await self.create(algorithm=algorithm, heuristic='linf',
+                                      full_knowledge=full_knowledge)
+                    for _ in range(40):
+                        response = await self.agent.post('/step')
+                        self.assertEqual(response.status_code, 200, response.text)
+                        state = response.json()
+                        if state['status'] == 'succeeded':
+                            break
+                    else:
+                        self.fail('Explorer did not finish and return to its starting goal')
+                    self.assertEqual(len(state['knowledge']), 9)
+                    self.assertTrue(all(cell['visited'] for cell in state['knowledge']))
+                    self.assertEqual(state['run']['observation']['position'], {'x': 0, 'y': 0})
+                    history = (await self.agent.get('/history')).json()['events']
+                    self.assertEqual(history[-1]['action'], 'stop')
+                    self.assertGreater(len(history), 9)
+
+    async def test_full_knowledge_ignores_disconnected_cells_after_exploring_component(self):
+        await self.configure((0, 0), (0, 2))
+        await self.env.post('/grid/obstacles/stroke', json={
+            'obstacle': True, 'cells': [{'x': 1, 'y': y} for y in range(3)]})
+        await self.create(full_knowledge=True)
+        for _ in range(10):
+            response = await self.agent.post('/step')
+            self.assertEqual(response.status_code, 200, response.text)
+            state = response.json()
+            if state['status'] == 'succeeded':
+                break
+        else:
+            self.fail('Disconnected known cells prevented completion')
+        self.assertEqual({(cell['x'], cell['y']) for cell in state['knowledge'] if cell['visited']},
+                         {(0, 0), (0, 1), (0, 2)})
+        self.assertEqual(len(state['knowledge']), 6)
 
     async def test_invalid_student_action_pauses_without_moving(self):
         class BrokenPolicy:

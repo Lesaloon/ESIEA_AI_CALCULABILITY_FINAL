@@ -118,11 +118,12 @@ class Runner:
                                          trace=trace, knowledge=self.memory.snapshot()))
                 self.pending = None
                 self.error = ''
-                if event['observation']['goal_reached']:
-                    self.status = self.state['status'] = 'succeeded'
-                    self.final_path = self.plan_final_path()
-                elif event['action'] == 'stop':
-                    self.status = self.state['status'] = 'stopped'
+                if event['action'] == 'stop':
+                    if event['observation']['goal_reached']:
+                        self.status = self.state['status'] = 'succeeded'
+                        self.final_path = self.plan_final_path()
+                    else:
+                        self.status = self.state['status'] = 'stopped'
                 elif event['turn'] >= self.config['max_turns']:
                     await self.client.end(self.state['run_id'])
                     self.status = 'limit_reached'
