@@ -6,9 +6,9 @@ from uuid import uuid4
 
 import grpc
 from agent.environment_client import observation_from
-from agent.memory import DiscoveredGraph
+from agent.algorithms.agent import Agent
+from agent.memory import RunGraph
 from agent.models import AgentConfig, Move, Stop
-from agent.registry import ALGORITHMS
 
 
 class RunnerError(Exception):
@@ -34,7 +34,7 @@ class Runner:
         self.status = 'ready'
         self.error = ''
         self.history = []
-        self.memory = DiscoveredGraph()
+        self.memory = RunGraph()
         self.pending = None
         self.config = None
         self.initial_observation = None
@@ -46,25 +46,15 @@ class Runner:
                     config=self.config, knowledge=self.memory.snapshot(), history_count=len(self.history),
                     final_path=[dict(x=x, y=y) for x, y in self.final_path])
 
-    def plan_final_path(self):
-        planner = getattr(self.policy, 'final_path', None)
-        start = self.state['start']
-        goal = self.state['observation']['goal']
-        start, goal = (start['x'], start['y']), (goal['x'], goal['y'])
-        if callable(planner):
-            return planner(start, goal, self.memory.view())
-        planner = getattr(getattr(self.policy, 'planner', None), 'plan', None)
-        return planner(self.memory.view(), start, goal).path if callable(planner) else []
-
     async def create(self, config):
         if self.continuous:
             raise RunnerError('Pause before resetting the run')
         async with self.lock:
             if self.continuous:
                 raise RunnerError('Pause before resetting the run')
-            agent_config = AgentConfig(config['heuristic'])
+            agent_config = AgentConfig(config['heuristic'], config['algorithm'])
             try:
-                policy = ALGORITHMS[config['algorithm']].factory(agent_config)
+                policy = Agent()
                 policy.reset(agent_config)
             except Exception as exc:
                 raise RunnerError(f'{type(exc).__name__}: {exc}') from exc
@@ -74,13 +64,12 @@ class Runner:
             self.initial_observation = state['observation']
             self.status = 'succeeded' if state['status'] == 'succeeded' else 'paused'
             self.error, self.history, self.pending, self.final_path = '', [], None, []
-            self.memory = DiscoveredGraph()
+            self.memory = RunGraph()
+            self.memory.seed(await self.client.grid(state['run_id']))
             self.memory.observe(observation_from(state['observation']))
-            if config['full_knowledge']:
-                self.memory.seed(await self.client.grid(state['run_id']))
             self.initial_knowledge = self.memory.snapshot()
             if self.status == 'succeeded':
-                self.final_path = self.plan_final_path()
+                self.final_path = [(state['start']['x'], state['start']['y'])]
             return self.snapshot()
 
     async def step(self, background=False):
@@ -121,7 +110,7 @@ class Runner:
                 if event['action'] == 'stop':
                     if event['observation']['goal_reached']:
                         self.status = self.state['status'] = 'succeeded'
-                        self.final_path = self.plan_final_path()
+                        self.final_path = list(self.policy.path or [])
                     else:
                         self.status = self.state['status'] = 'stopped'
                 elif event['turn'] >= self.config['max_turns']:

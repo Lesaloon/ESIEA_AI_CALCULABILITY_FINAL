@@ -15,13 +15,11 @@ import { SimulationGrid } from '../simulation-grid';
 export class AgentPanel {
   readonly sim = inject(SimulationStore);
   readonly env = inject(EnvironmentStore);
-  readonly algorithm = signal('example');
+  readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
-  readonly fullKnowledge = signal(false);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
-  readonly knowledgeOnly = signal(false);
   readonly showTrace = signal(true);
   readonly metrics = ['l1', 'l2', 'squared_l2', 'mse', 'linf'];
   readonly running = computed(() => this.sim.state()?.status === 'running');
@@ -62,8 +60,8 @@ export class AgentPanel {
         runId = state?.run?.run_id;
         this.replay.set(null);
         if (state?.config) {
-          this.algorithm.set(state.config.algorithm); this.heuristic.set(state.config.heuristic);
-          this.fullKnowledge.set(state.config.full_knowledge);
+          this.algorithm.set(state.config.algorithm);
+          this.heuristic.set(state.config.heuristic);
           this.interval.set(state.config.interval_ms); this.maxTurns.set(state.config.max_turns);
         }
       }
@@ -73,6 +71,6 @@ export class AgentPanel {
   async create() {
     this.replay.set(null);
     await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(),
-      full_knowledge: this.fullKnowledge(), interval_ms: this.interval(), max_turns: this.maxTurns() });
+      interval_ms: this.interval(), max_turns: this.maxTurns() });
   }
 }

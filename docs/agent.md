@@ -8,20 +8,17 @@ From the repository root:
 docker compose up -d --build
 ```
 
-Open <http://localhost:4200>. In **Environment**, edit obstacles/weights, then
-place **Start** and **Goal** on walkable cells (or set their coordinates). In
-**Agent**, choose **Example explorer · breadth-first**, create a run and click
-**Step**. **Run** advances automatically; **Pause** finishes the current turn.
-**End run** releases the scenario for editing. **Reset run** starts again at
-the configured start with fresh algorithm state and empty history. It uses
-the settings currently shown in the panel.
+Open <http://localhost:4200>. In **Environment**, edit obstacles and weights,
+then place **Start** and **Goal** on walkable cells. In **Agent**, choose a
+search algorithm (Dijkstra or A*) and heuristic, create a run and click **Step**. **Run** advances automatically;
+**Pause** finishes the current turn. **End run** releases the scenario for
+editing. **Reset run** uses the displayed settings with fresh algorithm state
+and empty history. The interval and maximum turns apply to each newly created run.
 
-The interval and maximum turn count apply to each newly created run. A browser
-refresh recovers the current run and history. Execution continues without a
-browser connection. The first version stores the latest run in service memory;
-service restarts clear their respective state. After an agent restart, **End
-run** or creating a new run can release an orphaned environment run. After an
-environment restart, end/reset the agent run and configure the new scenario.
+Execution continues without a browser connection; refreshing recovers the run
+and history. State is in memory. After an agent restart, **End run** or creating
+a new run releases an orphaned environment run. After an environment restart,
+end/reset the agent run and configure the new scenario.
 
 Local development uses three terminals:
 
@@ -44,113 +41,66 @@ Environment HTTP defaults to `127.0.0.1:8000`; gRPC defaults to
 environment with `HTTP_HOST`, `HTTP_PORT`, `GRPC_HOST`, `GRPC_PORT`; configure
 the agent with `HTTP_HOST`, `HTTP_PORT`, `ENVIRONMENT_GRPC_ADDRESS`.
 
+## Selectable full-map algorithms
+
+`agent/algorithms/astar.py` implements A* with the selected heuristic.
+`agent/algorithms/dijkstra.py` implements Dijkstra by reusing the weighted
+search with a zero estimate, so its priority is accumulated cost alone.
+Both are selectable through `agent/registry.py`. `agent/algorithms/agent.py`
+executes the chosen search and follows its route, without an exploration policy:
+
+1. `Runner.create()` loads the complete frozen run grid over gRPC.
+2. `Agent.reset(config)` creates the selected algorithm with the supplied
+   `AgentConfig.heuristic` and clears the cached path.
+3. On the first decision, the selected algorithm searches from the start to the goal.
+4. `Agent.decide()` follows the cached path, one neighboring move per turn.
+5. At the goal it returns `Stop`; if no route exists, it stops without moving.
+
+The agent never selects exploration waypoints or tries to visit every cell.
+Search expansions inspect the known graph without physically moving the agent.
+The final path is the route actually computed before movement, reused without
+another search at completion. Dijkstra always uses zero estimates, regardless
+of the supplied heuristic; A* uses the chosen metric.
+
 ## What the algorithm knows
 
-The framework passes transport-independent types from `agent/models.py`:
+Transport-independent types live in `agent/models.py`:
 
+- `AgentConfig.heuristic`: the selected distance metric.
+- `AgentConfig.algorithm`: `dijkstra` or `astar`.
+- `GraphView`: a read-only graph of **all** walkable cells in the frozen run map.
+  `weights` holds entry costs, `edges[source][destination]` holds directional
+  movement costs, and `visited` tracks physically occupied positions only.
 - `Observation.position` and `.goal`: zero-based `(x, y)` tuples.
-- `.neighbors`: **only the current position's walkable eight-way neighbors**.
-  Diagonal moves are allowed even when the two side cells are obstacles, and
-  cost the destination cell's weight, just like orthogonal moves.
-  Each contains its position, cost to enter, and geometric distances to the goal.
+- `.neighbors`: the current position's walkable eight-way neighbors, including
+  their entry costs and geometric distances to the goal.
 - `.current_cell_weight`, `.goal_distances`, `.turn`, `.goal_reached`.
-- `DiscoveredGraphView`: a read-only graph built entirely from past observations.
-  `weights` includes seen walkable cells; `visited` includes positions physically
-  occupied; `edges[source][destination]` contains observed/inferred movement costs.
 
-By default there is no arbitrary-coordinate inspection. Missing neighbors indicate
-unavailable directions. Cells seen as neighbors are discovered but not fully
-inspected until occupied. Known adjacent connectivity is symmetric; entering-cell
-costs are directional. Never treat a missing edge between two unvisited cells as
-proof that it is blocked.
+Diagonal moves are allowed even when the two side cells are obstacles. All
+moves cost the destination cell's weight (1–9), including diagonal moves.
+Connectivity is symmetric; movement costs need not be. `RunGraph` loads the
+map once; observations subsequently record visits without discovering cells.
+The graph and observations are supplied by the runner, so algorithm code does
+not need to import environment internals or call the HTTP grid editor.
 
-Algorithms should use these types, not import environment internals or call the
-teacher's HTTP grid editor. The run configuration's `full_knowledge` option seeds
-the same graph view from the frozen run grid for controlled heuristic experiments.
-
-## Exercise 1: Dijkstra or A*
-
-Implement `DijkstraPlanner.plan` or `AStarPlanner.plan` in
-`agent/planners/template.py`. The contract is:
-
-```python
-def plan(self, graph: DiscoveredGraphView,
-         start: Position, target: Position) -> PlanningResult:
-    ...
-```
-
-Return a list of coordinates **including start and target**, or an empty list
-when there is no known route. Start equal to target should return `[start]`.
-Use the actual directional costs in `graph.edges`. A successful planner does
-not mutate the supplied graph.
-
-Enable the matching entry in `agent/registry.py` by changing `enabled=False`
-to `enabled=True`. Restart/rebuild the agent and refresh the browser. The
-algorithm becomes selectable. Keep factory creation per run so private state
-does not leak between runs.
-
-The supplied `Explorer` policy selects a seen, unvisited cell closest to the
-goal using the configured geometric metric, invokes your planner on the
-discovered graph, then executes **only the first move**. It replans after each
-new local observation. Reaching the goal does not end exploration: after every
-reachable cell has been visited, it returns to the goal and stops successfully.
-The supplied breadth-first planner gives a working example, but intentionally
-ignores weights: it finds shortest-hop paths rather than minimum-cost paths.
-
-Without `full_knowledge`, this is **physical exploration with replanning**, not
-full-map search. Dijkstra and admissible A* find shortest routes on the graph
-currently known. That graph may omit shortcuts, and exploration adds travel. Do
-not claim that total travel or the first discovered goal route is globally optimal.
-
-### Suggested planner checks
-
-Use small directed graphs to verify:
-
-1. A costly direct route versus a cheaper multi-hop detour.
-2. Different forward and reverse costs.
-3. Start equals target and an unreachable target.
-4. Improving the cost of an already-discovered node.
-5. Deterministic tie-breaking and path reconstruction.
-6. Dijkstra and A* with zero heuristic agree on minimum cost.
-
-For oracle comparisons, build a `networkx.DiGraph` from the supplied edges and
-compare path cost with `networkx.shortest_path_length(..., weight='weight')`.
-Do not require the same path when several equal-cost solutions exist.
-
-## Exercise 2: an exploration policy
-
-Implement `AlgoPolicy` in `agent/algorithms/algo_template.py`:
-
-```python
-def reset(self, config: AgentConfig) -> None:
-    # Reset private state once per run.
-    ...
-
-def decide(self, observation: Observation,
-           knowledge: DiscoveredGraphView) -> Decision:
-    return Decision(
-        action=Move(observation.neighbors[0].position),
-        explanation='Why I chose this neighboring cell',
-    )
-```
-
-Handle empty neighbor lists. Return `Stop('reason')` when finished or unable
-to continue. Moves must target a current neighbor; jumping to a search node or
-returning an entire path is invalid. Revisits are allowed and cost money again.
-Enable the `template` entry in the registry, or register another policy factory.
+To modify the search, edit `AStar.search()` or `Dijkstra.estimate()`; route
+execution is in `Agent.decide()`.
+The search returns `PlanningResult(path, trace)`, with a path including start
+and goal, `[start]` when both coincide, or `[]` if no route exists. Decisions
+return `Decision(Move(neighbor), explanation, trace)` or `Decision(Stop(reason))`.
+Reset private state in `reset()` for each new run. Do not mutate the graph.
 
 ## Search traces and turn semantics
 
-One turn is one decision and one committed result. A move increments the turn
-and charges the destination's weight (1–9); initial placement costs zero. A
-student `Stop` also records a turn with zero travel cost. An invalid action does
-not advance the turn or change the environment and pauses with an error. Goal
-occupancy is nonterminal so exploration can continue through it. A `Stop` at the
-goal succeeds; a `Stop` elsewhere stops without success. The maximum-turn limit
-ends the run after that many committed decisions. Manual **End run** is an
-execution control, not an algorithm decision, and does not add a movement event.
+One turn is one decision and committed result. A move increments the turn and
+charges the destination's weight; initial placement costs zero. A `Stop` records
+a turn with zero travel cost. The agent stops on its next decision after entering
+the goal. Start equal to goal therefore produces just one `Stop`, with no move.
+An invalid action does not advance the turn and pauses with an error. The maximum
+turn limit ends the run after that many committed decisions. Manual **End run**
+does not add a movement event.
 
-Populate `SearchTrace` if desired:
+The first decision includes the complete search trace:
 
 ```python
 SearchTrace(
@@ -161,15 +111,13 @@ SearchTrace(
 )
 ```
 
-Search expansions happen inside a decision and do not move the agent. The UI
-shows actual movement separately, including revisit counts. Select a history
-row or scrub the replay slider to inspect that turn's resulting observation,
-knowledge, and decision trace. Trace values describe planning **before** the
-action; the accompanying observation describes the committed result. **Live**
-returns to the current turn. Replay never changes live execution.
-
-The environment retains a frozen map for the latest run via its UI-only HTTP
-endpoint, so subsequent grid edits do not corrupt that run's replay.
+Later moves show the remaining cached path without new search expansions.
+The UI separates actual movement from search. Select a history row or use the
+replay slider to inspect that turn's observation and trace. Traces describe
+planning **before** the action; observations describe the committed result.
+**Live** returns to the current turn. Replay never changes execution. The
+environment retains a frozen map for the latest run so later edits do not
+corrupt its replay.
 
 ## Distances and heuristics
 
@@ -177,51 +125,51 @@ For `dx = abs(x - goal.x)` and `dy = abs(y - goal.y)`:
 
 | Key | Value |
 | --- | --- |
-| `zero` (planner helper only) | `0` |
+| `zero` | `0` (Dijkstra) |
 | `l1` | `dx + dy` |
 | `l2` | `sqrt(dx² + dy²)` |
 | `squared_l2` | `dx² + dy²` |
 | `mse` | `(dx² + dy²) / 2` |
 | `linf` | `max(dx, dy)` |
 
-`agent.distances.distance(a, b, metric)` works for any known coordinates and
-does not access the environment. In a planner, compute the heuristic to that
-planner's **target**, which may be an exploration waypoint instead of the goal.
+`agent.distances.distance(a, b, metric)` computes the heuristic without querying
+the environment. A* uses `config.heuristic` to estimate distance to the
+goal and orders search nodes by `f = g + h`. Dijkstra uses `h = 0` and `f = g`.
+The UI disables the heuristic selector for Dijkstra and displays Zero; switching
+back to A* restores the previously chosen metric.
 
-For eight-way moves with minimum entry cost 1, L∞ is an admissible and
-consistent lower bound. `zero` gives Dijkstra's priority. L1, L2, squared L2
-and MSE can overestimate; the usual A* optimality guarantee does not apply. None of
-these measurements accounts for unseen obstacles or weights.
+For eight-way moves with minimum entry cost 1, L∞ is admissible and consistent.
+Zero and L∞ give minimum-cost routes. L1, L2, squared L2 and MSE can overestimate,
+so the usual A* optimality guarantee does not apply to those choices.
 
 ## Transport and ownership
 
 ```text
 Browser -- /api/environment HTTP --> Environment (grid + run authority)
-Browser -- /api/agent HTTP -------> Agent (runner + student policies)
-Agent   -- simulation.v1 gRPC ----> Environment (observations + actions + opt-in grid)
+Browser -- /api/agent HTTP -------> Agent (runner + selected search algorithm)
+Agent   -- simulation.v1 gRPC ----> Environment (frozen grid + observations + actions)
 ```
 
 The environment runs FastAPI and `grpc.aio` on one event loop and shares a lock
 across grid edits, scenario configuration and turns. Use one process/worker per
-service while their state is in memory. Paused runs still lock scenario edits.
+service while state is in memory. Paused runs still lock scenario edits.
 
 gRPC exposes `StartRun`, `Observe`, `ApplyAction`, `GetRunState`, `GetRunGrid`,
-`GetTurnEvents` and `EndRun`. `GetRunGrid` returns the frozen snapshot for the
-matching run and is requested only when `full_knowledge` is enabled. `GetRunState`
-with an empty run ID recovers the latest environment run after an agent restart.
-All other run requests require the matching ID.
-Start requests and actions have unique request/action IDs. Retrying the same
-action returns its original result; reusing its ID for different content fails.
-`expected_turn` rejects stale commands. The agent retains a pending decision
-when a movement reply is lost, so the next Step can recover that same move.
+`GetTurnEvents` and `EndRun`. The agent requests `GetRunGrid` for every new run.
+`GetRunState` with an empty ID recovers the latest environment run; other run
+requests require a matching ID. Start requests and actions have unique IDs.
+Retrying the same action returns its original result; reusing its ID for
+different content fails. `expected_turn` rejects stale commands. The runner
+retains a pending decision when a reply is lost so the next Step recovers the
+same move without another decision or search.
 
 Agent HTTP endpoints:
 
 - `GET /algorithms`, `/state`, `/health`.
-- `POST /runs`: `algorithm`, `heuristic`, `full_knowledge`, `interval_ms`, `max_turns`.
+- `POST /runs`: `algorithm` (default `astar`), `heuristic`, `interval_ms`, `max_turns`.
 - `POST /step`, `/run`, `/pause`, `/stop`.
-- `GET /history?run_id=...&after_sequence=...`: up to 100 new records;
-  retrieve additional pages using the last sequence. A mismatched run ID fails.
+- `GET /history?run_id=...&after_sequence=...`: up to 100 new records; paginate
+  using the last sequence. A mismatched run ID fails.
 
 Environment additions:
 
@@ -229,7 +177,7 @@ Environment additions:
 - `POST /scenario`: `{start: {x,y} | null, goal: {x,y} | null}`.
 - `GET /runs/{run_id}/grid`: frozen full-map snapshot for UI replay.
 
-Resizing clears both endpoints; resetting the grid preserves valid endpoints.
+Resizing clears endpoints; resetting the grid preserves valid endpoints.
 Obstacle strokes touching either endpoint fail atomically. Active runs reject
 all grid/scenario writes, including while paused. Finishing, stopping or reaching
 the turn limit unlocks the scenario.
@@ -237,16 +185,15 @@ the turn limit unlocks the scenario.
 ## Regenerate the shared protocol
 
 The versioned `simulation.v1` contract is in `contracts/simulation.proto`.
-Generated Python modules are checked in so runtime installs do not need a compiler.
-After modifying the proto, run from the repository root:
+Generated Python modules are checked in. After modifying the proto:
 
 ```sh
 python -m pip install -r contracts/requirements-dev.txt
 python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. contracts/simulation.proto
 ```
 
-Rebuild both Python service images after protocol changes. Their Docker build
-context is the repository root so each includes the same `contracts/` package.
+Rebuild both Python service images after protocol changes. Their build context
+is the repository root so each includes the same `contracts/` package.
 
 ## Verification
 
@@ -256,8 +203,8 @@ python -m unittest environment.test_grid environment.test_api environment.test_s
 docker compose config --quiet
 ```
 
-Run `npm run build` inside `control-panel/`. The integration tests use real
-ephemeral gRPC listeners and in-process HTTP clients; no running containers are
-required. They cover local visibility, directional costs, invalid/stale moves,
-duplicate actions, lost replies, scenario locking, history, replay snapshots,
-pause/resume, run reset, unreachable goals and turn limits.
+Run `npm run build` inside `control-panel/`. Integration tests use ephemeral
+gRPC listeners and in-process HTTP clients. They cover the frozen graph,
+directional costs, algorithm selection, heuristic reset, weighted detours, a single cached search,
+stopping at the goal without exploration, start equal to goal, unreachable
+goals, invalid/stale moves, retries, locking, replay and execution controls.

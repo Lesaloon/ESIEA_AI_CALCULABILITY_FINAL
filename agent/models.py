@@ -28,11 +28,12 @@ class Observation:
 @dataclass(frozen=True)
 class AgentConfig:
     heuristic: str = 'l1'
+    algorithm: str = 'astar'
 
 
 @dataclass(frozen=True)
-class DiscoveredGraphView:
-    """Only observed nodes; costs are directional destination-cell weights."""
+class GraphView:
+    """Frozen run graph; costs are directional destination-cell weights."""
     edges: Mapping[Position, Mapping[Position, float]]
     weights: Mapping[Position, float]
     visited: frozenset[Position]
@@ -71,8 +72,4 @@ class Decision:
 
 class AgentPolicy(Protocol):
     def reset(self, config: AgentConfig) -> None: ...
-    def decide(self, observation: Observation, knowledge: DiscoveredGraphView) -> Decision: ...
-
-
-class PathPlanner(Protocol):
-    def plan(self, graph: DiscoveredGraphView, start: Position, target: Position) -> PlanningResult: ...
+    def decide(self, observation: Observation, knowledge: GraphView) -> Decision: ...
