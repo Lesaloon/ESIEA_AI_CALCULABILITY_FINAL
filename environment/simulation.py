@@ -103,7 +103,7 @@ class Simulation:
             raise SimulationError('Configure both start and goal first', 422)
         self.run = dict(run_id=str(uuid4()), start=self.start, goal=self.goal,
                         position=self.start, turn=0, cost=0,
-                        status='succeeded' if self.start == self.goal else 'active')
+                        status='active')
         self.start_request = request_id
         self.actions, self.events = {}, []
         self.run['observation'] = self._observation()
@@ -132,10 +132,8 @@ class Simulation:
             cost = self._grid().graph.nodes[target]['weight']
             self.run['position'] = target
             self.run['cost'] += cost
-            if target == self.run['goal']:
-                self.run['status'] = 'succeeded'
         else:
-            self.run['status'] = 'stopped'
+            self.run['status'] = 'succeeded' if origin == self.run['goal'] else 'stopped'
         self.run['turn'] += 1
         self.run['observation'] = self._observation()
         event = dict(sequence=len(self.events) + 1, turn=self.run['turn'],

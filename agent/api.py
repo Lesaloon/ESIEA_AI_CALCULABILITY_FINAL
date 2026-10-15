@@ -11,9 +11,8 @@ from agent.runner import Runner, RunnerError
 
 
 class RunConfiguration(BaseModel):
-    algorithm: str = 'example'
+    algorithm: str = 'astar'
     heuristic: str = 'l1'
-    full_knowledge: bool = False
     interval_ms: int = Field(default=300, ge=50, le=5000, strict=True)
     max_turns: int = Field(default=1000, ge=1, le=10000, strict=True)
 
@@ -54,8 +53,8 @@ async def health():
 
 @app.get('/algorithms')
 async def algorithms():
-    return [dict(id=key, label=a.label, description=a.description, enabled=a.enabled)
-            for key, a in ALGORITHMS.items()]
+    return [dict(id=key, label=value.label, description=value.description)
+            for key, value in ALGORITHMS.items()]
 
 
 @app.get('/state')
@@ -77,8 +76,8 @@ async def history(request: Request, after_sequence: int = 0, run_id: str = ''):
 
 @app.post('/runs')
 async def create_run(body: RunConfiguration, request: Request):
-    if body.algorithm not in ALGORITHMS or not ALGORITHMS[body.algorithm].enabled:
-        raise HTTPException(422, 'Choose an enabled algorithm in agent/registry.py')
+    if body.algorithm not in ALGORITHMS:
+        raise HTTPException(422, 'Unknown algorithm')
     if body.heuristic not in ('zero', 'l1', 'l2', 'squared_l2', 'mse', 'linf'):
         raise HTTPException(422, 'Unknown heuristic')
     return await request.app.state.runner.create(body.model_dump())

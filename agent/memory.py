@@ -1,11 +1,11 @@
-"""Build read-only graph views from observations or an opted-in grid snapshot."""
+"""Read-only frozen run graph and physical visit tracking."""
 
 from types import MappingProxyType
-from agent.models import DiscoveredGraphView
+from agent.models import GraphView
 
 
-class DiscoveredGraph:
-    """Accumulate a graph using only cells observed by the agent."""
+class RunGraph:
+    """Load all walkable cells once; observations only record visits."""
 
     def __init__(self):
         self.edges = {}
@@ -13,16 +13,7 @@ class DiscoveredGraph:
         self.visited = set()
 
     def observe(self, observation):
-        current = observation.position
-        self.visited.add(current)
-        self.weights[current] = observation.current_cell_weight
-        self.edges.setdefault(current, {})
-        for neighbor in observation.neighbors:
-            node = neighbor.position
-            self.weights[node] = neighbor.movement_cost
-            self.edges[current][node] = neighbor.movement_cost
-            # Eight-way connectivity is symmetric, but movement costs are not.
-            self.edges.setdefault(node, {})[current] = observation.current_cell_weight
+        self.visited.add(observation.position)
 
     def seed(self, snapshot):
         weights = {(cell['position']['x'], cell['position']['y']): cell['weight']
@@ -38,7 +29,7 @@ class DiscoveredGraph:
                         self.edges[node][neighbor] = weights[neighbor]
 
     def view(self):
-        return DiscoveredGraphView(
+        return GraphView(
             MappingProxyType({node: MappingProxyType(dict(edges)) for node, edges in self.edges.items()}),
             MappingProxyType(dict(self.weights)), frozenset(self.visited))
 

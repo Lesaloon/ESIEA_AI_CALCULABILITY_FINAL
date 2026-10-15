@@ -14,7 +14,7 @@ All three services share the `simulation` bridge network. The agent connects to
 the environment gRPC server at `environment:50051`; this port is not published
 to the host. The control panel controls both services over proxied HTTP.
 See [the student agent guide](docs/agent.md) for extension interfaces, turn
-semantics, distance metrics, and the A*/Dijkstra exercises.
+semantics, distance metrics, and the selectable Dijkstra and A* algorithms.
 See [the class diagrams](docs/class-diagrams.md) for the functional environment
 and agent class relationships.
 
@@ -123,10 +123,12 @@ npm start
 ```
 
 Open `http://localhost:4200`. The **Environment** tab contains the grid editor
-and configurable start/goal placement. The **Agent** tab contains algorithm
-selection, Step/Run/Pause/Reset controls, local observations, distance metrics,
+and configurable start/goal placement. The **Agent** tab contains Dijkstra/A*
+selection, configurable A* heuristics, Step/Run/Pause/Reset controls, observations, distance metrics,
 movement history and replay. Start the agent locally with `python -m agent.main`
-after installing `agent/requirements.txt`. Switching tabs preserves shared state.
+after installing `agent/requirements.txt`. The agent knows the complete frozen map
+and follows its computed route without discovery moves. Dijkstra uses accumulated
+cost alone; A* receives the selected heuristic. Switching tabs preserves shared state.
 Use Left/Right arrows or Home/End to navigate the tabs with a keyboard.
 
 In **Obstacles** mode, hold the left mouse button

@@ -59,9 +59,8 @@ classDiagram
         +dict state
         +str status
         +list history
-        +DiscoveredGraph memory
+        +RunGraph memory
         +snapshot() dict
-        +plan_final_path() list
         +create(config)
         +step(background)
         +run()
@@ -69,43 +68,41 @@ classDiagram
         +stop()
     }
 
-    class DiscoveredGraph {
+    class RunGraph {
         +dict edges
         +dict weights
         +set visited
+        +seed(snapshot)
         +observe(observation)
-        +view() DiscoveredGraphView
+        +view() GraphView
         +snapshot() list
     }
 
-    class Explorer {
-        +planner
+    class Agent {
+        +AgentConfig config
+        +list path
         +reset(config)
-        +final_path(start, goal, knowledge) list
         +decide(observation, knowledge) Decision
     }
 
-    class BreadthFirstPlanner {
-        +plan(graph, start, target) PlanningResult
-    }
-
-    class DijkstraPlanner {
-        +plan(graph, start, target) PlanningResult
-    }
-
-    class AStarPlanner {
+    class AStar {
         +str heuristic
-        +plan(graph, start, target) PlanningResult
+        +estimate(node, target) float
+        +search(graph, start, target) PlanningResult
     }
 
-    Runner *-- DiscoveredGraph : owns discovered knowledge
-    Runner --> Explorer : executes selected policy
-    Explorer o-- BreadthFirstPlanner : uses
-    Explorer o-- DijkstraPlanner : uses
-    Explorer o-- AStarPlanner : uses
+    class Dijkstra {
+        +estimate(node, target) float
+    }
+
+    Runner *-- RunGraph : owns frozen map and visits
+    Runner --> Agent : executes decisions
+    Agent o-- AStar : selected search
+    AStar <|-- Dijkstra : zero estimate
 ```
 
-`Runner` controls execution and records each turn. It updates `DiscoveredGraph`
-from local observations or seeds it from the frozen run grid when full knowledge
-is enabled. `Explorer` selects a target and delegates route calculation to the
-planner configured for the run.
+`Runner` controls execution and records each turn. It loads `RunGraph` from the
+complete frozen run grid and records physical visits from observations. `Agent`
+executes the selected Dijkstra or A* search, then follows its cached route and
+stops at the goal without exploration. A* receives the configured heuristic;
+Dijkstra reuses the search with zero estimates.
