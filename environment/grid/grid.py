@@ -6,10 +6,12 @@ from dataclasses import dataclass, field
 import networkx as nx
 
 Node = tuple[int, int]
+NEIGHBOR_OFFSETS = tuple((dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                         if (dx, dy) != (0, 0))
 
 @dataclass
 class Grid:
-    """A non-periodic graph of (x, y) nodes with four-way connectivity."""
+    """A non-periodic graph of (x, y) nodes with eight-way connectivity."""
 
     width: int
     height: int
@@ -21,6 +23,13 @@ class Grid:
             raise ValueError("Grid dimensions must be positive")
 
         self.graph = nx.grid_2d_graph(self.width, self.height)
+        self.graph.add_edges_from(
+            ((x, y), (x + 1, y + dy))
+            for x in range(self.width - 1)
+            for y in range(self.height)
+            for dy in (-1, 1)
+            if 0 <= y + dy < self.height
+        )
         nx.set_node_attributes(self.graph, 1, "weight")
 
     def is_walkable(self, node: Node) -> bool:
@@ -63,14 +72,15 @@ class Grid:
         self.graph.remove_node(node)
 
     def add_node(self, node: Node) -> None:
-        """Restore a cell and its edges to existing four-way neighbors."""
+        """Restore a cell and its edges to existing eight-way neighbors."""
         x, y = node
         if not (0 <= x < self.width and 0 <= y < self.height):
             raise ValueError("Coordinates are outside the grid")
         if node in self.graph:
             raise ValueError(f"Node {node} is already in the grid")
         self.graph.add_node(node, weight=self._removed_weights.pop(node, 1))
-        for neighbor in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+        for dx, dy in NEIGHBOR_OFFSETS:
+            neighbor = (x + dx, y + dy)
             if neighbor in self.graph:
                 self.graph.add_edge(node, neighbor)
 

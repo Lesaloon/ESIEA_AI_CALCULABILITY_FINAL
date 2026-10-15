@@ -21,7 +21,7 @@ class DiscoveredGraph:
             node = neighbor.position
             self.weights[node] = neighbor.movement_cost
             self.edges[current][node] = neighbor.movement_cost
-            # Four-way connectivity is symmetric, but movement costs are not.
+            # Eight-way connectivity is symmetric, but movement costs are not.
             self.edges.setdefault(node, {})[current] = observation.current_cell_weight
 
     def seed(self, snapshot):

@@ -49,7 +49,9 @@ the agent with `HTTP_HOST`, `HTTP_PORT`, `ENVIRONMENT_GRPC_ADDRESS`.
 The framework passes transport-independent types from `agent/models.py`:
 
 - `Observation.position` and `.goal`: zero-based `(x, y)` tuples.
-- `.neighbors`: **only the current position's walkable four-way neighbors**.
+- `.neighbors`: **only the current position's walkable eight-way neighbors**.
+  Diagonal moves are allowed even when the two side cells are obstacles, and
+  cost the destination cell's weight, just like orthogonal moves.
   Each contains its position, cost to enter, and geometric distances to the goal.
 - `.current_cell_weight`, `.goal_distances`, `.turn`, `.goal_reached`.
 - `DiscoveredGraphView`: a read-only graph built entirely from past observations.
@@ -184,9 +186,9 @@ For `dx = abs(x - goal.x)` and `dy = abs(y - goal.y)`:
 does not access the environment. In a planner, compute the heuristic to that
 planner's **target**, which may be an exploration waypoint instead of the goal.
 
-For four-way moves with minimum entry cost 1, L1, L2 and L∞ are admissible and
-consistent lower bounds. `zero` gives Dijkstra's priority. Squared L2 and MSE
-can overestimate; the usual A* optimality guarantee does not apply. None of
+For eight-way moves with minimum entry cost 1, L∞ is an admissible and
+consistent lower bound. `zero` gives Dijkstra's priority. L1, L2, squared L2
+and MSE can overestimate; the usual A* optimality guarantee does not apply. None of
 these measurements accounts for unseen obstacles or weights.
 
 ## Transport and ownership

@@ -54,9 +54,9 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         self.assertEqual(set(observation), {'run_id', 'turn', 'position', 'goal', 'current_cell_weight',
                                            'goal_distances', 'neighbors', 'goal_reached'})
         self.assertEqual(observation['neighbors'][0]['position'], {'x': 0, 'y': 1})
-        self.assertEqual(len(observation['neighbors']), 1)
+        self.assertEqual(len(observation['neighbors']), 2)
         self.assertEqual(observation['goal_distances'], {'l1': 4, 'l2': 8 ** .5, 'squared_l2': 8, 'mse': 4, 'linf': 2})
-        self.assertEqual({(c['x'], c['y']) for c in state['knowledge']}, {(0, 0), (0, 1)})
+        self.assertEqual({(c['x'], c['y']) for c in state['knowledge']}, {(0, 0), (0, 1), (1, 1)})
         graph = DiscoveredGraph()
         graph.observe(observation_from(observation))
         self.assertEqual(graph.view().edges[(0, 0)][(0, 1)], 7)
@@ -76,6 +76,19 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         graph = agent_app.state.runner.memory.view()
         self.assertEqual(graph.edges[(0, 0)][(0, 1)], 7)
         self.assertEqual(graph.edges[(0, 1)][(0, 0)], 1)
+        self.assertEqual(graph.edges[(0, 0)][(1, 1)], 1)
+
+    async def test_diagonal_move_between_obstacles_charges_destination_weight(self):
+        await self.env.post('/grid/obstacles/0/1')
+        await self.env.post('/grid/obstacles/1/0')
+        await self.env.post('/grid/weights/1/1', json={'weight': 7})
+        state = await self.client.start('diagonal')
+        self.assertEqual([n['position'] for n in state['observation']['neighbors']],
+                         [{'x': 1, 'y': 1}])
+        event = await self.client.apply(state['run_id'], 0, 'diagonal-move', Move((1, 1)))
+        self.assertEqual(event['to'], {'x': 1, 'y': 1})
+        self.assertEqual(event['step_cost'], 7)
+        self.assertEqual(event['cumulative_cost'], 7)
 
     async def test_astar_can_switch_away_from_zero_on_reset(self):
         state = await self.create(algorithm='astar', heuristic='zero')
@@ -148,7 +161,7 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         for event in history:
             self.assertEqual(event['from'], position)
             position = event['to']
-            self.assertEqual(abs(event['from']['x'] - position['x']) + abs(event['from']['y'] - position['y']), 1)
+            self.assertEqual(max(abs(event['from']['x'] - position['x']), abs(event['from']['y'] - position['y'])), 1)
             cost += event['step_cost']
             self.assertEqual(cost, event['cumulative_cost'])
             self.assertEqual(event['observation']['position'], position)
@@ -158,15 +171,15 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         self.assertEqual(state['final_path'][0], {'x': 0, 'y': 0})
         self.assertEqual(state['final_path'][-1], {'x': 2, 'y': 2})
         for origin, target in zip(state['final_path'], state['final_path'][1:]):
-            self.assertEqual(abs(origin['x'] - target['x']) + abs(origin['y'] - target['y']), 1)
+            self.assertEqual(max(abs(origin['x'] - target['x']), abs(origin['y'] - target['y'])), 1)
         self.assertEqual((await self.env.get('/scenario')).json()['locked'], False)
         await self.create()
         self.assertEqual((await self.agent.get('/history')).json()['events'], [])
-        self.assertEqual(len((await self.agent.get('/state')).json()['knowledge']), 2)
+        self.assertEqual(len((await self.agent.get('/state')).json()['knowledge']), 3)
 
     async def test_unreachable_goal_limits_and_start_at_goal(self):
         await self.env.post('/grid/obstacles/stroke', json={
-            'obstacle': True, 'cells': [{'x': 0, 'y': 1}, {'x': 1, 'y': 0}]})
+            'obstacle': True, 'cells': [{'x': 0, 'y': 1}, {'x': 1, 'y': 0}, {'x': 1, 'y': 1}]})
         await self.create()
         state = (await self.agent.post('/step')).json()
         self.assertEqual(state['status'], 'stopped')

@@ -2,10 +2,25 @@
 
 import unittest
 
+import networkx as nx
+
 from environment.grid import Grid
 
 
 class GridRestorationTests(unittest.TestCase):
+    def test_eight_way_topology_and_boundaries(self):
+        grid = Grid(3, 3)
+        self.assertEqual(set(grid.neighbors((1, 1))), set(grid.graph) - {(1, 1)})
+        self.assertEqual(set(grid.neighbors((0, 1))),
+                         {(0, 0), (0, 2), (1, 0), (1, 1), (1, 2)})
+        self.assertEqual(grid.graph.number_of_edges(), 20)
+        for width, height in ((1, 1), (1, 3), (3, 1), (2, 4)):
+            with self.subTest(width=width, height=height):
+                grid = Grid(width, height)
+                self.assertEqual(set(grid.graph),
+                                 {(x, y) for x in range(width) for y in range(height)})
+                self.assertEqual(list(nx.selfloop_edges(grid.graph)), [])
+
     def test_restores_original_topology_and_weight(self):
         grid = Grid(3, 3)
         original_edges = {frozenset(edge) for edge in grid.graph.edges}
@@ -21,16 +36,16 @@ class GridRestorationTests(unittest.TestCase):
         grid.remove_node((1, 0))
         grid.add_node((1, 1))
         self.assertFalse(grid.is_walkable((1, 0)))
-        self.assertEqual(set(grid.neighbors((1, 1))), {(0, 1), (2, 1), (1, 2)})
+        self.assertEqual(set(grid.neighbors((1, 1))), set(grid.graph) - {(1, 1)})
         grid.add_node((1, 0))
         self.assertTrue(grid.graph.has_edge((1, 0), (1, 1)))
-        self.assertEqual(grid.graph.number_of_edges(), 12)
+        self.assertEqual(grid.graph.number_of_edges(), 20)
 
     def test_corners_and_invalid_restorations(self):
         grid = Grid(3, 3)
         grid.remove_node((0, 0))
         grid.add_node((0, 0))
-        self.assertEqual(set(grid.neighbors((0, 0))), {(1, 0), (0, 1)})
+        self.assertEqual(set(grid.neighbors((0, 0))), {(1, 0), (0, 1), (1, 1)})
         for node in ((0, 0), (-1, 0), (3, 0), (0, 3)):
             with self.subTest(node=node), self.assertRaises(ValueError):
                 grid.add_node(node)
