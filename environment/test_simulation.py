@@ -77,6 +77,8 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         self.assertEqual(graph.edges[(0, 0)][(0, 1)], 7)
         self.assertEqual(graph.edges[(0, 1)][(0, 0)], 1)
         self.assertEqual(graph.edges[(0, 0)][(1, 1)], 1)
+        self.assertEqual(graph.edges[(1, 2)][(2, 1)], 1)
+        self.assertTrue(all(node not in edges for node, edges in graph.edges.items()))
 
     async def test_diagonal_move_between_obstacles_charges_destination_weight(self):
         await self.env.post('/grid/obstacles/0/1')

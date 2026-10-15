@@ -31,9 +31,11 @@ class DiscoveredGraph:
         for node in weights:
             self.edges.setdefault(node, {})
             x, y = node
-            for neighbor in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                if neighbor in weights:
-                    self.edges[node][neighbor] = weights[neighbor]
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    neighbor = (x + dx, y + dy)
+                    if neighbor != node and neighbor in weights:
+                        self.edges[node][neighbor] = weights[neighbor]
 
     def view(self):
         return DiscoveredGraphView(
