@@ -173,6 +173,10 @@ class ApiTests(TestCase):
                                                                    params=dict(weight_max=2, weight_step=1)))
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(len(response.json()['methods']), 2)
+        # The panel always sends every setting, including those of unselected methods.
+        response = self.client.post('/experiments/tune', json=dict(size=10, optimizers=['tabu'],
+                                                                   params=dict(weight_max=2, weight_step=1, trials=5)))
+        self.assertEqual(response.status_code, 200, response.text)
         for body in (dict(params=dict(weight_min=4, weight_max=2)), dict(params=dict(bogus=1)),
                      dict(optimizers=['nope']), dict(size=60)):
             with self.subTest(body=body):

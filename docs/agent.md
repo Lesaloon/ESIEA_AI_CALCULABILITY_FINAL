@@ -243,3 +243,26 @@ the reference and every trial. The **Agent** tab shows it under the grid.
 
 To add an optimizer, subclass `Optimizer` (declare `params`, implement `optimize()`
 using the `evaluate(heuristic, weight)` callable) and register it in `agent/registry.py`.
+
+## Experiments tab (algorithm comparison and parameter search)
+
+The **Experiments** tab of the control panel runs everything below through the agent API; no
+terminal is needed. Maps are generated in memory (start on the left, goal on the right, entering
+a cell costs its weight 1–9, diagonals included with 8 neighbors), so no run is created.
+
+- **Algorithm comparison** — `POST /experiments/benchmark`: Dijkstra, A*, weighted A* and greedy
+  for every combination of grid size, connectivity (4/8), heuristic and obstacle (none, U trap
+  opening toward the start, vertical wall with a passage, random walls). Reports time (median),
+  memory, expanded nodes (explored graph), depth (moves of the route) and cost / optimal cost.
+- **Optimization on a fixed configuration** — `POST /experiments/tune`: grid search, random
+  search, hill climbing, simulated annealing and tabu search on the same generated map, with a
+  shared evaluation cache, the score landscape and the pair returned by each method.
+  `weight_min` (a), `weight_max` (b) and `weight_step` (c) bound the search.
+- **Generalization** — `POST /experiments/transfer`: a tuned (heuristic, w) is tested on variable
+  configurations against classic A*, the best pair on average (robust) and a grid search re-tuned
+  on each map.
+
+The score of a pair is `cost·C/C_ref + time·T/T_ref + memory·M/M_ref` against classic A*
+(L∞, w = 1) on the same map: 3 means "as good as classic A*" with the default importances.
+Search time is noisy on small maps; set the time importance to 0 for reproducible comparisons.
+Nginx allows these requests 180 s (`/api/agent/experiments/`).

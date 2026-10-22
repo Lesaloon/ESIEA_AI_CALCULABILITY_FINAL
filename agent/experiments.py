@@ -283,7 +283,8 @@ def tune(size=20, connectivity=8, obstacle='u', weights='random', seed=0,
     from agent.registry import OPTIMIZERS
 
     params = dict(params or {})
-    unknown = set(params) - {p.id for key in optimizers if key in OPTIMIZERS for p in OPTIMIZERS[key].params}
+    # Shared form: a setting may belong to an unselected method, but must belong to some method.
+    unknown = set(params) - {p.id for cls in OPTIMIZERS.values() for p in cls.params}
     if unknown:
         raise ValueError(f'Unknown parameter: {", ".join(sorted(unknown))}')
     config = MapConfig(size, connectivity, obstacle, weights, seed)
