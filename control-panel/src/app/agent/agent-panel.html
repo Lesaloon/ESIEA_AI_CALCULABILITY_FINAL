@@ -46,18 +46,14 @@
           (click)="compareWeights()">Compare</button>
       </div>
       @if (report(); as report) {
-        <p class="help">
-          @if (report.best.cost === null) { No route for these weights. }
-          @else { Best w is {{ report.best.w | number:'1.0-2' }} · cost {{ report.best.cost | number:'1.0-2' }} · {{ report.best.duration * 1000 | number:'1.0-3' }} ms · {{ report.best.expansions }} nodes. }
-        </p>
         <div class="history-scroll">
           <table>
             <caption class="sr-only">Weighted A* grid search results</caption>
             <thead><tr><th>w</th><th>Cost</th><th>Nodes</th><th>Duration (ms)</th><th>Score</th></tr></thead>
             <tbody>
               @for (trial of report.trials; track trial.w) {
-                <tr [class.selected]="trial.w === report.best.w" (click)="weight.set(trial.w)">
-                  <td>{{ trial.w | number:'1.0-2' }}</td>
+                <tr [class.best]="trial.w === report.best.w" (click)="weight.set(trial.w)">
+                  <td>{{ trial.w | number:'1.0-2' }}@if (trial.w === report.best.w) { <span class="best-mark">Best</span> }</td>
                   <td>{{ trial.cost === null ? '—' : (trial.cost | number:'1.0-2') }}</td>
                   <td>{{ trial.expansions }}</td>
                   <td>{{ trial.duration * 1000 | number:'1.0-3' }}</td>
@@ -67,6 +63,19 @@
             </tbody>
           </table>
         </div>
+        @if (report.best.cost === null) {
+          <p class="help">No route for these weights.</p>
+        } @else {
+          <section class="best-result" aria-label="Best weight">
+            <div class="best-result-heading"><h3>Best result</h3><span>w = {{ report.best.w | number:'1.0-2' }}</span></div>
+            <dl class="metrics">
+              <div><dt>Cost</dt><dd>{{ report.best.cost | number:'1.0-2' }}</dd></div>
+              <div><dt>Nodes</dt><dd>{{ report.best.expansions }}</dd></div>
+              <div><dt>Duration</dt><dd>{{ report.best.duration * 1000 | number:'1.0-3' }} ms</dd></div>
+              <div><dt>Score</dt><dd>{{ report.best.score === null ? '—' : (report.best.score | number:'1.0-3') }}</dd></div>
+            </dl>
+          </section>
+        }
       }
     </section>
   }

@@ -20,6 +20,13 @@ select:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .grid-search { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .grid-search .actions { margin: 12px 0; }
 .grid-search tbody tr { cursor: pointer; }
+.grid-search tbody tr.best { background: #d7efe8; font-weight: 600; }
+.grid-search tbody tr.best td:first-child { box-shadow: inset 3px 0 0 #056066; }
+.best-mark { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #056066; color: white; font: 10px ui-monospace, monospace; font-weight: 600; vertical-align: 1px; }
+.best-result { border: 1px solid #8bbec1; background: #f1f8f8; border-radius: 6px; padding: 16px; margin-top: 16px; }
+.best-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.best-result-heading span { font: 12px ui-monospace, monospace; color: #056066; }
+.best-result .metrics { margin: 8px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
 .error { color: var(--destructive); font-size: 13px; margin: 12px 0; }
 .execution-layout { display: grid; grid-template-columns: minmax(0, 1fr) 245px; border-top: 1px solid var(--border); margin-top: 24px; }
 .map-panel { padding: 20px 24px 20px 0; min-width: 0; }
@@ -58,4 +65,4 @@ th { font-weight: 600; color: var(--muted-foreground); position: sticky; top: 0;
 .empty { padding: 24px; text-align: center; color: var(--muted-foreground); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 @media (max-width: 850px) { .execution-layout { grid-template-columns: minmax(0, 1fr); } .map-panel { padding-right: 0; } aside { border-left: 0; border-top: 1px solid var(--border); padding-left: 0; } .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; } }
-@media (max-width: 480px) { section { padding: 16px; } .replay { flex-wrap: wrap; } .configuration label, .configuration input, select { width: 100%; } }
+@media (max-width: 480px) { section { padding: 16px; } .replay { flex-wrap: wrap; } .configuration label, .configuration input, select { width: 100%; } .best-result .metrics { grid-template-columns: 1fr 1fr; } }
