@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from math import inf, isfinite
 
+from agent.algorithms.global_w_search import global_w_search
 from agent.algorithms.grid_search import _score, graph_from_weights, grid_search, weighted_score
 from agent.algorithms.main_algo_1 import main_algo_1
 from agent.algorithms.main_algo_2 import main_algo_2
@@ -56,6 +57,15 @@ class MainAlgoConfiguration(BaseModel):
     start: GridPoint
     goal: GridPoint
     weights: list[list[float | None]] = Field(min_length=1, max_length=40)
+
+
+class GlobalSearchConfiguration(BaseModel):
+    heuristic: str = 'l1'
+    count: int = Field(default=5, ge=1, le=100, strict=True)
+    size: int = Field(default=10, ge=3, le=15, strict=True)
+    obstacle_percent: int = Field(default=8, ge=0, le=100, strict=True)
+    samples: int = Field(default=20, ge=5, le=30, strict=True)
+    seed: int | None = Field(default=None, ge=0, le=1_000_000_000)
 
 
 @asynccontextmanager
@@ -158,6 +168,32 @@ async def run_main_algo(body: MainAlgoConfiguration):
 @app.post('/main-algo-2')
 async def run_main_algo_2(body: MainAlgoConfiguration):
     return _publish_main(body, main_algo_2, weighted_score)
+
+
+@app.post('/global-w-search')
+async def run_global_search(body: GlobalSearchConfiguration):
+    if body.heuristic not in HEURISTICS:
+        raise HTTPException(422, 'Unknown heuristic')
+    try:
+        report = global_w_search(
+            body.count, body.size, body.obstacle_percent, body.samples, body.heuristic, body.seed)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return dict(
+        seed=report['seed'], ceiling=report['ceiling'], wins=report['wins'],
+        best=_global_point(report['best']),
+        curve=[_global_point(point) for point in report['curve']],
+        maps=[dict(
+            weights=item['weights'], start=item['start'], goal=item['goal'],
+            ceiling=item['ceiling'], obstacles=item['obstacles'],
+            best=_global_point(item['best']),
+        ) for item in report['maps']],
+    )
+
+
+def _global_point(point):
+    return dict(w=point['w'], score=_finite(point['score']), cost=_finite(point['cost']),
+                duration=point['duration'], expansions=point['expansions'])
 
 
 def _publish_main(body, algorithm, score):

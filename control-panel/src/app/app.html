@@ -14,6 +14,10 @@
       [attr.aria-selected]="activeTab() === 'agent'"
       [attr.tabindex]="activeTab() === 'agent' ? 0 : -1"
       (click)="activeTab.set('agent')">Agent</button>
+    <button id="global-tab" type="button" role="tab" aria-controls="global-panel"
+      [attr.aria-selected]="activeTab() === 'global'"
+      [attr.tabindex]="activeTab() === 'global' ? 0 : -1"
+      (click)="activeTab.set('global')">Recherche 3</button>
   </div>
 
   <div id="environment-panel" role="tabpanel" aria-labelledby="environment-tab"
@@ -23,5 +27,9 @@
   <div id="agent-panel" role="tabpanel" aria-labelledby="agent-tab"
     tabindex="0" [hidden]="activeTab() !== 'agent'">
     <app-agent-panel />
+  </div>
+  <div id="global-panel" role="tabpanel" aria-labelledby="global-tab"
+    tabindex="0" [hidden]="activeTab() !== 'global'">
+    <app-global-search-panel />
   </div>
 </main>

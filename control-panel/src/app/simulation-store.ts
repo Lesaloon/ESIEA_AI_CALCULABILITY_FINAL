@@ -37,6 +37,18 @@ export interface MainAlgoReport { ceiling: number; best: MainAlgoTrial; trials: 
 export interface MainAlgoRequest {
   heuristic: string; start: Position; goal: Position; weights: (number | null)[][];
 }
+export interface GlobalSearchRequest {
+  heuristic: string; count: number; size: number; obstacle_percent: number; samples: number; seed: number | null;
+}
+export interface GlobalSearchPoint { w: number; score: number | null; cost: number | null; duration: number; expansions: number; }
+export interface GlobalSearchMap {
+  weights: (number | null)[][]; start: Position; goal: Position;
+  ceiling: number; obstacles: number; best: GlobalSearchPoint;
+}
+export interface GlobalSearchReport {
+  seed: number; ceiling: number; wins: number; best: GlobalSearchPoint;
+  curve: GlobalSearchPoint[]; maps: GlobalSearchMap[];
+}
 export interface Algorithm { id: string; label: string; description: string; }
 export interface AgentState {
   status: string; error: string; config: RunConfig | null; knowledge: KnownCell[]; history_count: number;
@@ -142,6 +154,10 @@ export class SimulationStore implements OnDestroy {
 
   async mainAlgo2(body: MainAlgoRequest): Promise<MainAlgoReport | null> {
     return this._weightSearch<MainAlgoReport>('/api/agent/main-algo-2', body);
+  }
+
+  async globalSearch(body: GlobalSearchRequest): Promise<GlobalSearchReport | null> {
+    return this._weightSearch<GlobalSearchReport>('/api/agent/global-w-search', body);
   }
 
   private async _weightSearch<T>(url: string, body: object): Promise<T | null> {

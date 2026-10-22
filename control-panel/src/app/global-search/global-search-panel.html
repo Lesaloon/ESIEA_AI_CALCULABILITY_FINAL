@@ -1,0 +1,77 @@
+<section aria-labelledby="global-search-title">
+  <h2 id="global-search-title">Recherche 3</h2>
+  <p class="help">Draw random maps and score the same values of w on each one with weighted A*. The global score of a w is the average of its scores. Lower is better. This search does not change the environment grid or move the agent.</p>
+  <fieldset class="configuration" [disabled]="sim.busy()">
+    <legend class="sr-only">Random map search</legend>
+    <label>Maps<input #countInput type="number" min="1" max="100" step="1" [value]="count()" (input)="count.set(countInput.valueAsNumber)"></label>
+    <label>Size<input #sizeInput type="number" min="3" max="15" step="1" [value]="size()" (input)="size.set(sizeInput.valueAsNumber)"></label>
+    <label>Obstacles %<input #obstacleInput type="number" min="0" max="100" step="1" [value]="obstaclePercent()" (input)="obstaclePercent.set(obstacleInput.valueAsNumber)"></label>
+    <label>w samples<input #sampleInput type="number" min="5" max="30" step="1" [value]="samples()" (input)="samples.set(sampleInput.valueAsNumber)"></label>
+    <label>Heuristic
+      <select #heuristicInput [value]="heuristic()" (change)="heuristic.set(heuristicInput.value)">
+        @for (item of heuristics; track item[0]) { <option [value]="item[0]">{{ item[1] }}</option> }
+      </select>
+    </label>
+    <label>Seed<input #seedInput type="number" min="0" step="1" placeholder="Random" [value]="seedText()" (input)="seedText.set(seedInput.value)"></label>
+  </fieldset>
+  <p class="help">Obstacles is a percentage of the cells, rounded to the nearest count. Start and goal stay at opposite corners. Leave the seed empty for a new draw, or reuse a seed to repeat the same maps.</p>
+  <div class="actions">
+    <button hlmBtn id="global-search-compare" [disabled]="sim.busy() || !valid()" (click)="compare()">Compare</button>
+  </div>
+  @if (sim.error()) { <p class="error" role="alert">{{ sim.error() }}</p> }
+  @if (report(); as report) {
+    <p class="help">Shared ceiling: {{ report.ceiling | number:'1.0-2' }}. Seed {{ report.seed }}. {{ report.maps.length }} maps.</p>
+    @if (chart(); as chart) {
+      <figure class="score-chart">
+        <svg [attr.viewBox]="'0 0 ' + chart.width + ' ' + chart.height" role="img" [attr.aria-label]="'Average score against w, best w ' + (report.best.w | number:'1.0-3')">
+          <line class="axis" [attr.x1]="chart.pad.left" [attr.y1]="chart.pad.top" [attr.x2]="chart.pad.left" [attr.y2]="chart.height - chart.pad.bottom" />
+          <line class="axis" [attr.x1]="chart.pad.left" [attr.y1]="chart.height - chart.pad.bottom" [attr.x2]="chart.width - chart.pad.right" [attr.y2]="chart.height - chart.pad.bottom" />
+          <line class="best-line" [attr.x1]="chart.pad.left" [attr.x2]="chart.width - chart.pad.right" [attr.y1]="chart.bestY" [attr.y2]="chart.bestY" />
+          <polyline [attr.points]="chart.line" />
+          @for (point of chart.points; track point.w) {
+            <circle [class.best]="point.best" [attr.cx]="point.cx" [attr.cy]="point.cy" [attr.r]="point.best ? 6 : 3.5">
+              <title>w = {{ point.w | number:'1.0-3' }}, average score = {{ point.score | number:'1.0-3' }}</title>
+            </circle>
+          }
+          <text class="best-label" [attr.x]="chart.label.x" [attr.y]="chart.label.y" [attr.text-anchor]="chart.label.anchor">Best</text>
+          <text [attr.x]="chart.pad.left - 8" [attr.y]="chart.pad.top + 8" text-anchor="end">{{ chart.maxS }}</text>
+          <text [attr.x]="chart.pad.left - 8" [attr.y]="chart.height - chart.pad.bottom + 4" text-anchor="end">{{ chart.minS }}</text>
+          <text [attr.x]="chart.pad.left" [attr.y]="chart.height - 18">{{ chart.minW }}</text>
+          <text [attr.x]="chart.width - chart.pad.right" [attr.y]="chart.height - 18" text-anchor="end">{{ chart.maxW }}</text>
+          <text [attr.x]="chart.width - chart.pad.right" [attr.y]="chart.height - 4" text-anchor="end">w</text>
+        </svg>
+        <p class="chart-legend"><span><i class="measured"></i>Average score</span><span><i class="best"></i>Best global w</span></p>
+      </figure>
+    }
+    <section class="best-result" aria-label="Best global weight">
+      <div class="best-result-heading"><h3>Best global w</h3><span>w = {{ report.best.w | number:'1.0-3' }}</span></div>
+      <dl class="metrics">
+        <div><dt>Average score</dt><dd>{{ report.best.score | number:'1.0-3' }}</dd></div>
+        <div><dt>Average cost</dt><dd>{{ report.best.cost | number:'1.0-2' }}</dd></div>
+        <div><dt>Average duration</dt><dd>{{ report.best.duration * 1000 | number:'1.0-3' }} ms</dd></div>
+        <div><dt>Best on</dt><dd>{{ report.wins }} / {{ report.maps.length }} maps</dd></div>
+      </dl>
+    </section>
+    <div class="history-scroll">
+      <table>
+        <caption>Best w on each random map. Select a row to see that map.</caption>
+        <thead><tr><th>Map</th><th>Obstacles</th><th>Ceiling</th><th>Best w</th><th>Cost</th><th>Score</th></tr></thead>
+        <tbody>
+          @for (map of report.maps; track $index) {
+            <tr [class.selected]="selected() === $index" (click)="selected.set($index)">
+              <td>{{ $index + 1 }}</td>
+              <td>{{ map.obstacles }}</td>
+              <td>{{ map.ceiling | number:'1.0-2' }}</td>
+              <td>{{ map.best.w | number:'1.0-3' }}@if (map.best.w === report.best.w) { <span class="best-mark">Global</span> }</td>
+              <td>{{ map.best.cost | number:'1.0-2' }}</td>
+              <td>{{ map.best.score | number:'1.0-3' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (preview(); as preview) {
+      <app-simulation-grid [grid]="preview.grid" [start]="preview.start" [goal]="preview.goal" label="Random map" />
+    }
+  }
+</section>
