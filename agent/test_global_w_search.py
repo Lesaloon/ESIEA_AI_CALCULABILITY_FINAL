@@ -4,6 +4,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from agent.algorithms.global_w_search import global_w_search
+from agent.algorithms.grid_search import weighted_score
 
 
 def steady_clock():
@@ -38,6 +39,10 @@ class GlobalWSearchTests(TestCase):
             self.assertIsNotNone(item['weights'][5][5])
             self.assertEqual(item['obstacles'], 4)
             self.assertEqual(len(item['trials']), 8)
+            best_cost = min(trial['cost'] for trial in item['trials'])
+            best_duration = min(trial['duration'] for trial in item['trials'])
+            for trial in item['trials']:
+                self.assertEqual(trial['score'], weighted_score(trial, best_cost, best_duration))
         best = min(first['curve'], key=lambda point: (point['score'], point['w']))
         self.assertEqual(first['best']['w'], best['w'])
         self.assertEqual(first['wins'], sum(item['best']['w'] == best['w'] for item in first['maps']))

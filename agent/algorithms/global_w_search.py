@@ -3,7 +3,7 @@
 from random import Random
 from time import perf_counter
 
-from agent.algorithms.grid_search import _path_cost, _score, graph_from_weights
+from agent.algorithms.grid_search import _path_cost, graph_from_weights, weighted_score
 from agent.algorithms.main_algo_1 import weight_ceiling
 from agent.algorithms.weighted_astar import WeightedAStar
 
@@ -14,8 +14,9 @@ def global_w_search(count, size, obstacle_percent, samples, heuristic='l1', seed
     Each map is a square with random weights from 1 to 9. Obstacles are a
     percentage of its cells, rounded to the nearest count. The start and the
     goal stay at opposite corners and remain connected. Every map is scored
-    with cost/best_cost + duration/best_duration. The global score of a w is
-    the average of those scores. Lower is better.
+    with ten times the relative cost plus the relative duration, the same
+    score as Recherche 2. The global score of a w is the average of those
+    scores. Lower is better.
     """
     count, size, obstacles, samples = _parameters(count, size, obstacle_percent, samples)
     if seed is None:
@@ -112,7 +113,7 @@ def _measure(weights, start, goal, heuristic, candidates):
     best_cost = min(trial['cost'] for trial in trials)
     best_duration = min(trial['duration'] for trial in trials)
     for trial in trials:
-        trial['score'] = _score(trial, best_cost, best_duration)
+        trial['score'] = weighted_score(trial, best_cost, best_duration)
     best = min(trials, key=lambda trial: (trial['score'], trial['w']))
     return dict(
         weights=weights,

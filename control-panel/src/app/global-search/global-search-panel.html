@@ -1,6 +1,6 @@
 <section aria-labelledby="global-search-title">
   <h2 id="global-search-title">Recherche 3</h2>
-  <p class="help">Draw random maps and score the same values of w on each one with weighted A*. The global score of a w is the average of its scores. Lower is better. This search does not change the environment grid or move the agent.</p>
+  <p class="help">Draw random maps and score the same values of w on each one with weighted A*. The score is 10 times the relative cost plus the relative duration. The global score of a w is the average of those scores. Lower is better. This search does not change the environment grid or move the agent.</p>
   <fieldset class="configuration" [disabled]="sim.busy()">
     <legend class="sr-only">Random map search</legend>
     <label>Maps<input #countInput type="number" min="1" max="100" step="1" [value]="count()" (input)="count.set(countInput.valueAsNumber)"></label>
