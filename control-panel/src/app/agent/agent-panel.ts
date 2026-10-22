@@ -4,6 +4,9 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { EnvironmentStore } from '../environment/environment-store';
 import { OptimizerParam, SimulationStore } from '../simulation-store';
 import { SimulationGrid } from '../simulation-grid';
+import { ExperimentsStore, SavedRun } from '../experiments/experiments-store';
+
+const SCORING_GROUP = 'Scoring importance';
 
 @Component({
   selector: 'app-agent-panel',
@@ -15,6 +18,7 @@ import { SimulationGrid } from '../simulation-grid';
 export class AgentPanel {
   readonly sim = inject(SimulationStore);
   readonly env = inject(EnvironmentStore);
+  private readonly experiments = inject(ExperimentsStore);
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
   readonly weight = signal(1);
@@ -60,6 +64,7 @@ export class AgentPanel {
       for (const p of tuned.params) {
         if (!inRange(this.paramValue(p.id, p.default), p.min, p.max)) return `${p.label} must be between ${p.min} and ${p.max}.`;
       }
+      if (this.scoringParams().every(p => !this.paramValue(p.id, p.default))) return 'At least one importance must be above zero.';
       const min = tuned.params.find(p => p.id === 'weight_min');
       const max = tuned.params.find(p => p.id === 'weight_max');
       if (min && max && this.paramValue(min.id, min.default) > this.paramValue(max.id, max.default)) return 'Weight min must not exceed weight max.';
@@ -81,11 +86,21 @@ export class AgentPanel {
   readonly showWeight = computed(() => this.algorithm() === 'astar' && (!this.tuned() || !!this.tuned()?.uses_start));
   readonly paramGroups = computed(() => {
     const groups = new Map<string, OptimizerParam[]>();
-    for (const param of this.tuned()?.params ?? []) groups.set(param.group, [...groups.get(param.group) ?? [], param]);
+    for (const param of this.tuned()?.params ?? []) {
+      if (param.group !== SCORING_GROUP) groups.set(param.group, [...groups.get(param.group) ?? [], param]);
+    }
     return [...groups].map(([name, params]) => ({ name, params }));
   });
+  // Importances of the score, shown as the formula F = a × cost + b × time + c × memory.
+  readonly scoringParams = computed(() => (this.tuned()?.params ?? []).filter(p => p.group === SCORING_GROUP));
 
   constructor() {
+    effect(() => {
+      const saved = this.experiments.pendingLoad();
+      if (!saved) return;
+      this.applySaved(saved);
+      this.experiments.pendingLoad.set(null);
+    });
     let runId: string | undefined;
     effect(() => {
       const state = this.sim.state();
@@ -104,11 +119,23 @@ export class AgentPanel {
     });
   }
 
+  // Restore the configuration of a saved run into the form; the run itself is created with "Create run".
+  private applySaved(saved: SavedRun) {
+    this.algorithm.set('astar');
+    this.heuristic.set(saved.startHeuristic);
+    this.weight.set(saved.startWeight);
+    this.optimizer.set(saved.optimizer);
+    this.optimizerParams.set({ ...saved.params });
+  }
+
   delta(value: number | null, reference: number | null) {
     if (value === null || !reference) return '';
     const percent = Math.round((value / reference - 1) * 100);
     return percent === 0 ? '±0%' : `${percent > 0 ? '+' : ''}${percent}%`;
   }
+
+  // 'Cost importance' -> 'cost'
+  term(param: OptimizerParam) { return param.label.replace(/ importance$/i, '').toLowerCase(); }
 
   paramValue(id: string, fallback: number) { return this.optimizerParams()[id] ?? fallback; }
 

@@ -1,0 +1,79 @@
+<section aria-labelledby="experiments-title">
+  <div class="toolbar">
+    <div>
+      <h2 id="experiments-title">Saved experiments</h2>
+      <p class="intro">Grouped by grid, then by scoring function. Saved in this browser.</p>
+    </div>
+    <div class="actions">
+      <button hlmBtn variant="outline" [disabled]="!store.runs().length" (click)="store.exportCsv()">Export CSV</button>
+      <button hlmBtn variant="outline" (click)="save()">Save current run</button>
+    </div>
+  </div>
+  @if (status(); as message) {
+    <p [class]="message.ok ? 'help' : 'error'" role="status">{{ message.text }}</p>
+  }
+  @if (store.storageError()) { <p class="error" role="alert">{{ store.storageError() }}</p> }
+
+  @for (grid of store.groups(); track grid.key) {
+    <div class="grid-card">
+      <div class="grid-head">
+        @if (renaming() === grid.key) {
+          <input #nameInput class="rename" type="text" maxlength="40" aria-label="Grid name" [value]="grid.name"
+            (keydown.enter)="rename(grid.key, nameInput.value)" (keydown.escape)="renaming.set(null)"
+            (blur)="rename(grid.key, nameInput.value)">
+        } @else {
+          <button class="toggle" type="button" [attr.aria-expanded]="!isCollapsed(grid.key)" (click)="toggle(grid.key)">
+            <span class="chevron" aria-hidden="true"></span>
+            <span>
+              <span class="title">{{ grid.name }} @if (grid.current) { <span class="badge current">current grid</span> }</span>
+              <span class="sub">start ({{ grid.start.x }}, {{ grid.start.y }}) → goal ({{ grid.goal.x }}, {{ grid.goal.y }})</span>
+            </span>
+          </button>
+          <button hlmBtn variant="ghost" size="xs" type="button" (click)="renaming.set(grid.key)">Rename</button>
+        }
+        <span class="count">{{ grid.count }} {{ grid.count === 1 ? 'run' : 'runs' }} · {{ grid.functions.length }} {{ grid.functions.length === 1 ? 'function' : 'functions' }}</span>
+      </div>
+
+      @if (!isCollapsed(grid.key)) {
+        @for (fn of grid.functions; track fn.key) {
+          <div class="function">
+            <div class="function-head">
+              <button class="toggle" type="button" [attr.aria-expanded]="!isCollapsed(grid.key + ':' + fn.key)"
+                (click)="toggle(grid.key + ':' + fn.key)">
+                <span class="chevron" aria-hidden="true"></span>
+                <code>{{ fn.formula }}</code>
+              </button>
+              <span class="count">{{ fn.runs.length }} {{ fn.runs.length === 1 ? 'run' : 'runs' }}</span>
+              @if (fn.best; as best) { <span class="best">Best: {{ heuristicName(best.heuristic) }}, w = {{ best.weight }}</span> }
+            </div>
+            @if (!isCollapsed(grid.key + ':' + fn.key)) {
+              @for (run of fn.runs; track run.id) {
+                <div class="run">
+                  <div class="what">
+                    <span class="badge">{{ shortLabel(run) }}</span>{{ heuristicName(run.heuristic) }}, w = {{ run.weight }}
+                    <span class="sub">score {{ run.score | number:'1.0-2' }} · {{ run.savedAt | date:'d MMM HH:mm' }}</span>
+                  </div>
+                  <div class="params">{{ describe(run) }}</div>
+                  <div class="side">
+                    <span class="chips">
+                      @for (item of metrics(run); track item.label) { <b class="chip" [class]="'chip ' + item.kind">{{ item.text }}</b> }
+                    </span>
+                    <span class="row-actions">
+                      <button hlmBtn variant="ghost" size="xs" type="button" (click)="load(run)">Load</button>
+                      <button hlmBtn variant="ghost" size="xs" type="button" (click)="remove(run)">Delete</button>
+                    </span>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        }
+      }
+    </div>
+  } @empty {
+    <div class="empty">
+      <h3>No saved runs yet</h3>
+      <p class="help">Create a run with a parameter optimizer in the Agent tab and take a first step, then save the result here.</p>
+    </div>
+  }
+</section>

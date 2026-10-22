@@ -16,6 +16,11 @@ h3 { font-size: 14px; font-weight: 600; }
 .configuration h5 { font-size: 12px; font-weight: 600; }
 .configuration .fields { display: flex; flex-wrap: wrap; gap: 12px; }
 .configuration .subblock { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.configuration .block.wide { flex-basis: 100%; }
+.configuration .formula { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 14px ui-monospace, monospace; }
+.configuration .coef { display: flex; align-items: center; gap: 6px; font: inherit; }
+.configuration .coef input { width: 64px; text-align: center; }
+.configuration .formula-f { font-weight: 600; }
 .configuration .flag { display: flex; align-items: center; gap: 8px; }
 .configuration .flag input { width: auto; }
 select, .configuration input { border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: white; color: var(--foreground); font-size: 13px; }

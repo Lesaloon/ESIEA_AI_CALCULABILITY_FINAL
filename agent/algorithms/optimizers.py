@@ -16,13 +16,14 @@ import tracemalloc
 from dataclasses import dataclass
 from itertools import product
 from math import inf
+from statistics import median
 from time import perf_counter
 
 from agent.algorithms.astar import AStar
 
 HEURISTICS = ('l1', 'l2', 'linf', 'squared_l2', 'mse')
 REFERENCE = ('linf', 1.0)
-TIMING_REPEATS = 3
+TIMING_REPEATS = 5
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ def measure(graph, start, target, heuristic, weight):
     """Run one A* search and return (path, time_ms, memory_kb, expanded)."""
     search = AStar(heuristic, weight).search
     times = []
-    for _ in range(TIMING_REPEATS):  # best of N: robust against scheduling noise
+    for _ in range(TIMING_REPEATS):  # median of N: smooth, and not fooled by one lucky or unlucky run
         began = perf_counter()
         search(graph, start, target, trace=False)
         times.append((perf_counter() - began) * 1000)
@@ -65,7 +66,7 @@ def measure(graph, start, target, heuristic, weight):
     peak = tracemalloc.get_traced_memory()[1] - baseline
     if not tracing:
         tracemalloc.stop()
-    return result.path, min(times), peak / 1024, len(result.trace.expanded)
+    return result.path, median(times), peak / 1024, len(result.trace.expanded)
 
 
 class Evaluator:

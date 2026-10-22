@@ -225,7 +225,7 @@ reference search (classic A*, L∞, `w = 1`):
 score = cost_weight * cost/cost_ref + time_weight * time/time_ref + memory_weight * memory/memory_ref
 ```
 
-`cost` is the route cost, `time` the best of 3 search durations, `memory` the peak
+`cost` is the route cost, `time` the median of 5 search durations, `memory` the peak
 allocation of one search (`tracemalloc`). The three importances are editable in the UI;
 set one to 0 to ignore a criterion. Time depends on the machine and is slightly noisy. Every optimizer also has `lock_heuristic` (0 by default, a checkbox in the UI): at 1 it keeps the heuristic selected in the run configuration and tunes only the weight.
 
@@ -243,3 +243,12 @@ the reference and every trial. The **Agent** tab shows it under the grid.
 
 To add an optimizer, subclass `Optimizer` (declare `params`, implement `optimize()`
 using the `evaluate(heuristic, weight)` callable) and register it in `agent/registry.py`.
+
+## Saved experiments
+
+The **Experiments** tab keeps the result of optimizer runs in the browser (`localStorage`, key
+`aic.saved-experiments.v1`). **Save current run** stores the first decision's `tuning` report of the
+current run: best (heuristic, weight), score, search parameters, the three importances and every trial.
+Runs are grouped by grid (cells, weights, start and goal, fingerprinted together; renameable), then by
+scoring function (the three importances). **Load** puts a run's optimizer settings back in the Agent
+tab form; it does not restore the grid. **Export CSV** writes one row per trial of every saved run.

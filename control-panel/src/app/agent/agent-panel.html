@@ -68,6 +68,23 @@
         }
       </div>
     }
+    @if (tuned() && scoringParams().length) {
+      <div class="block wide">
+        <h4>Scoring function</h4>
+        <div class="formula" role="group" aria-label="Scoring function">
+          <span class="formula-f">F =</span>
+          @for (param of scoringParams(); track param.id; let last = $last) {
+            <label class="coef">
+              <input #coefInput type="number" [attr.aria-label]="param.label" [min]="param.min" [max]="param.max" [step]="param.step"
+                [value]="paramValue(param.id, param.default)" (input)="setParam(param.id, coefInput.valueAsNumber)">
+              <span>× ({{ term(param) }} / {{ term(param) }}₀)</span>
+            </label>
+            @if (!last) { <span class="formula-plus">+</span> }
+          }
+        </div>
+        <p class="help">Each pair (heuristic, weight) gets the score F, and the lowest F wins. <i>x</i>₀ is the same measure for classic A* (L∞, w = 1), so the terms have no unit; set a coefficient to 0 to ignore that criterion.</p>
+      </div>
+    }
     <div class="block">
       <h4>Execution</h4>
       <div class="fields">

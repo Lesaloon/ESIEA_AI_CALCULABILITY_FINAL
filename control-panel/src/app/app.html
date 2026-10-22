@@ -14,6 +14,10 @@
       [attr.aria-selected]="activeTab() === 'agent'"
       [attr.tabindex]="activeTab() === 'agent' ? 0 : -1"
       (click)="activeTab.set('agent')">Agent</button>
+    <button id="experiments-tab" type="button" role="tab" aria-controls="experiments-panel"
+      [attr.aria-selected]="activeTab() === 'experiments'"
+      [attr.tabindex]="activeTab() === 'experiments' ? 0 : -1"
+      (click)="activeTab.set('experiments')">Experiments</button>
   </div>
 
   <div id="environment-panel" role="tabpanel" aria-labelledby="environment-tab"
@@ -23,5 +27,9 @@
   <div id="agent-panel" role="tabpanel" aria-labelledby="agent-tab"
     tabindex="0" [hidden]="activeTab() !== 'agent'">
     <app-agent-panel />
+  </div>
+  <div id="experiments-panel" role="tabpanel" aria-labelledby="experiments-tab"
+    tabindex="0" [hidden]="activeTab() !== 'experiments'">
+    <app-experiments-panel (loaded)="activeTab.set('agent')" />
   </div>
 </main>
