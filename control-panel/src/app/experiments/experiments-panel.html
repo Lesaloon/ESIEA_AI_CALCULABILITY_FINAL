@@ -1,0 +1,232 @@
+<section aria-labelledby="benchmark-title">
+  <header class="heading">
+    <div><p class="eyebrow">Configurations · criteria</p><h2 id="benchmark-title">Algorithm comparison</h2></div>
+    <span class="availability" role="status">{{ benchmarkBusy() ? 'Running…' : benchmark() ? 'Done' : 'Ready' }}</span>
+  </header>
+  <p class="intro">Every selected algorithm searches from start (left) to goal (right) on generated maps, for every
+    combination of size, connectivity and obstacle. Entering a cell costs its weight, diagonals included.
+    <b>Expanded</b> = nodes taken out of the frontier (size of the explored graph); <b>depth</b> = moves of the route
+    (depth of the goal in the search tree, the steps the agent walks); <b>cost / optimal</b> compares with Dijkstra.</p>
+
+  <fieldset class="configuration" [disabled]="benchmarkBusy()">
+    <legend class="sr-only">Comparison configuration</legend>
+    <div class="block">
+      <h4>Maps</h4>
+      <div class="choice"><span>Grid size</span>
+        @for (size of sizeChoices; track size) {
+          <label class="chip"><input type="checkbox" [checked]="bSizes().includes(size)" (change)="toggle(bSizes, size)">{{ size }}×{{ size }}</label>
+        }
+      </div>
+      <div class="choice"><span>Connectivity</span>
+        @for (c of [4, 8]; track c) {
+          <label class="chip"><input type="checkbox" [checked]="bConnectivities().includes(c)" (change)="toggle(bConnectivities, c)">{{ c }} neighbors</label>
+        }
+      </div>
+      <div class="choice"><span>Obstacle</span>
+        @for (o of obstacles; track o.id) {
+          <label class="chip"><input type="checkbox" [checked]="bObstacles().includes(o.id)" (change)="toggle(bObstacles, o.id)">{{ o.label }}</label>
+        }
+      </div>
+      <div class="fields">
+        <label>Cell weights
+          <select #bWeightsInput [value]="bWeights()" (change)="bWeights.set(bWeightsInput.value === 'uniform' ? 'uniform' : 'random')">
+            <option value="random">Random 1–9</option><option value="uniform">All 1</option>
+          </select>
+        </label>
+        <label>Seed<input #bSeedInput type="number" min="0" step="1" [value]="bSeed()" (input)="bSeed.set(bSeedInput.valueAsNumber)"></label>
+      </div>
+    </div>
+    <div class="block">
+      <h4>Algorithms</h4>
+      <div class="choice"><span>Algorithm</span>
+        @for (a of algorithms; track a.id) {
+          <label class="chip"><input type="checkbox" [checked]="bAlgorithms().includes(a.id)" (change)="toggle(bAlgorithms, a.id)">{{ a.label }}</label>
+        }
+      </div>
+      <div class="choice"><span>Heuristic</span>
+        @for (h of heuristics; track h.id) {
+          <label class="chip"><input type="checkbox" [checked]="bHeuristics().includes(h.id)" (change)="toggle(bHeuristics, h.id)">{{ h.label }}</label>
+        }
+      </div>
+      <div class="fields">
+        <label>Weighted A* w<input #bWInput type="number" min="1" max="20" step="0.5" [value]="bWeight()" (input)="bWeight.set(bWInput.valueAsNumber)"></label>
+        <label>Timing runs<input #bRepeatInput type="number" min="1" max="7" step="1" [value]="bRepeat()" (input)="bRepeat.set(bRepeatInput.valueAsNumber)"></label>
+      </div>
+    </div>
+  </fieldset>
+  <div class="actions">
+    <button hlmBtn [disabled]="benchmarkBusy() || !bSizes().length || !bConnectivities().length || !bObstacles().length || !bAlgorithms().length || !bHeuristics().length"
+      (click)="runBenchmark()">{{ benchmarkBusy() ? 'Comparing…' : 'Run comparison' }}</button>
+  </div>
+  @if (benchmarkError()) { <p class="error" role="alert">{{ benchmarkError() }}</p> }
+
+  @if (benchmark(); as result) {
+    <div class="filter">
+      <label>Show
+        <select #filterInput [value]="obstacleFilter()" (change)="obstacleFilter.set(filterInput.value)">
+          <option value="all">All obstacles</option>
+          @for (o of obstacles; track o.id) { <option [value]="o.id">{{ o.label }}</option> }
+        </select>
+      </label>
+      <span class="help">{{ result.rows.length }} searches · time = median of {{ result.repeat }} runs (machine-dependent) ·
+        <span class="bad-dot"></span> not optimal · ✗ heuristic not admissible for this connectivity</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Map</th><th>Algorithm</th><th>h</th><th class="num">Time ms</th><th class="num">Memory KB</th>
+          <th>Expanded (vs Dijkstra)</th><th class="num">Depth</th><th class="num">Cost</th><th class="num">Cost / opt.</th></tr></thead>
+        <tbody>
+          @for (row of shownRows(); track $index) {
+            <tr [class.suboptimal]="!row.optimal">
+              <td class="map">{{ row.size }}² · {{ row.connectivity }}-c · {{ obstacleLabel(row.obstacle) }}</td>
+              <td>{{ row.label }}</td>
+              <td>{{ heuristicLabel(row.heuristic) }}@if (!row.admissible) { <span class="flag-bad" title="Not admissible: may overestimate">✗</span> }</td>
+              <td class="num">{{ row.time_ms | number:'1.2-2' }}</td>
+              <td class="num">{{ row.memory_kb | number:'1.0-0' }}</td>
+              <td><span class="bar"><span [style.width.%]="percent(row.expanded_vs_dijkstra)"></span></span>
+                {{ row.expanded }} <span class="muted">({{ (row.expanded_vs_dijkstra ?? 0) * 100 | number:'1.0-0' }}%)</span></td>
+              <td class="num">{{ row.depth ?? '–' }}</td>
+              <td class="num">{{ row.cost ?? '–' }}</td>
+              <td class="num">{{ row.cost_ratio === null ? '–' : (row.cost_ratio | number:'1.2-2') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <details><summary>Generated maps ({{ result.maps.length }}) — S start, G goal, # obstacle, digits = cell weight</summary>
+      <div class="previews">
+        @for (map of result.maps; track $index) {
+          <figure><figcaption>{{ map.label }} · optimal cost {{ map.optimal_cost }}</figcaption>
+            <pre>{{ previewText(map) }}</pre></figure>
+        }
+      </div>
+    </details>
+  }
+</section>
+
+<section aria-labelledby="transfer-title">
+  <header class="heading">
+    <div><p class="eyebrow">Fixed solution → variable configurations</p><h2 id="transfer-title">Generalization</h2></div>
+    <span class="availability" role="status">{{ transferBusy() ? 'Running…' : transfer() ? 'Done' : 'Ready' }}</span>
+  </header>
+  <p class="intro">Take the (heuristic, w) found by an optimizer on one configuration and test it on other maps.
+    On each map the score is the optimizer's score: importance-weighted cost, time and memory, each divided by classic
+    A* (L∞, w = 1) on that map — with importances 1/1/1 classic A* scores about 3, lower is better. Four strategies are
+    compared: the <b>fixed</b> solution, <b>classic A*</b>, one <b>robust</b> pair chosen for the best mean score over
+    all these maps, and a grid search <b>re-tuned</b> on every map (best possible on the grid, but costly).</p>
+
+  <fieldset class="configuration" [disabled]="transferBusy()">
+    <legend class="sr-only">Generalization configuration</legend>
+    <div class="block">
+      <h4>Solution to test</h4>
+      <div class="fields">
+        <label>Heuristic
+          <select #tHInput [value]="tHeuristic()" (change)="tHeuristic.set(tHInput.value)">
+            @for (h of heuristics; track h.id) { <option [value]="h.id">{{ h.label }}</option> }
+          </select>
+        </label>
+        <label>Weight w<input #tWInput type="number" min="1" max="20" step="0.1" [value]="tWeight()" (input)="tWeight.set(tWInput.valueAsNumber)"></label>
+      </div>
+      <button hlmBtn variant="outline" type="button" class="use-tuning" [disabled]="!lastTuning()" (click)="useLastTuning()">
+        {{ lastTuning() ? 'Use the Agent tab optimizer result: ' + heuristicLabel(lastTuning()!.heuristic) + ', w = ' + lastTuning()!.weight : 'Run an optimizer in the Agent tab to reuse its result' }}</button>
+      <h5>Re-tuning grid (a = min, b = max, c = step)</h5>
+      <div class="fields">
+        <label>a · Weight min<input #tMinInput type="number" min="1" max="20" step="0.1" [value]="tMin()" (input)="tMin.set(tMinInput.valueAsNumber)"></label>
+        <label>b · Weight max<input #tMaxInput type="number" min="1" max="20" step="0.1" [value]="tMax()" (input)="tMax.set(tMaxInput.valueAsNumber)"></label>
+        <label>c · Weight step<input #tStepInput type="number" min="0.1" max="5" step="0.1" [value]="tStep()" (input)="tStep.set(tStepInput.valueAsNumber)"></label>
+      </div>
+      <label class="flag"><input type="checkbox" [checked]="tLock()" (change)="tLock.set(!tLock())"> Lock the heuristic (tune only w)</label>
+      <h5>Scoring importance</h5>
+      <div class="fields">
+        <label>Cost<input #tCInput type="number" min="0" max="10" step="0.1" [value]="tCost()" (input)="tCost.set(tCInput.valueAsNumber)"></label>
+        <label>Time<input #tTInput type="number" min="0" max="10" step="0.1" [value]="tTime()" (input)="tTime.set(tTInput.valueAsNumber)"></label>
+        <label>Memory<input #tMInput type="number" min="0" max="10" step="0.1" [value]="tMemory()" (input)="tMemory.set(tMInput.valueAsNumber)"></label>
+      </div>
+    </div>
+    <div class="block">
+      <h4>Configurations to test</h4>
+      <div class="choice"><span>Grid size</span>
+        @for (size of sizeChoices; track size) {
+          <label class="chip"><input type="checkbox" [checked]="tSizes().includes(size)" (change)="toggle(tSizes, size)">{{ size }}×{{ size }}</label>
+        }
+      </div>
+      <div class="choice"><span>Connectivity</span>
+        @for (c of [4, 8]; track c) {
+          <label class="chip"><input type="checkbox" [checked]="tConnectivities().includes(c)" (change)="toggle(tConnectivities, c)">{{ c }} neighbors</label>
+        }
+      </div>
+      <div class="choice"><span>Obstacle</span>
+        @for (o of obstacles; track o.id) {
+          <label class="chip"><input type="checkbox" [checked]="tObstacles().includes(o.id)" (change)="toggle(tObstacles, o.id)">{{ o.label }}</label>
+        }
+      </div>
+      <div class="fields">
+        <label>Cell weights
+          <select #tWeightsInput [value]="tWeights()" (change)="tWeights.set(tWeightsInput.value === 'uniform' ? 'uniform' : 'random')">
+            <option value="random">Random 1–9</option><option value="uniform">All 1</option>
+          </select>
+        </label>
+        <label>Seed<input #tSeedInput type="number" min="0" step="1" [value]="tSeed()" (input)="tSeed.set(tSeedInput.valueAsNumber)"></label>
+      </div>
+    </div>
+  </fieldset>
+  <div class="actions">
+    <button hlmBtn [disabled]="transferBusy() || !tSizes().length || !tConnectivities().length || !tObstacles().length"
+      (click)="runTransfer()">{{ transferBusy() ? 'Testing…' : 'Test on these configurations' }}</button>
+  </div>
+  @if (transferError()) { <p class="error" role="alert">{{ transferError() }}</p> }
+
+  @if (transfer(); as result) {
+    <h3>Strategies over {{ result.rows.length }} configurations</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Strategy</th><th>Pair (h, w)</th><th class="num">Mean score</th><th class="num">Mean cost / opt.</th>
+          <th class="num">Worst cost / opt.</th><th class="num">Mean expanded</th></tr></thead>
+        <tbody>
+          @for (s of strategies; track s.id) {
+            <tr>
+              <td><b>{{ s.label }}</b><br><span class="muted">{{ s.help }}</span></td>
+              <td>
+                @switch (s.id) {
+                  @case ('fixed') { {{ heuristicLabel(result.solution.heuristic) }}, {{ result.solution.weight }} }
+                  @case ('reference') { L∞, 1 }
+                  @case ('robust') { {{ heuristicLabel(result.summary.robust.heuristic) }}, {{ result.summary.robust.weight }} }
+                  @case ('retuned') { one per map · {{ result.summary.retuned.evaluations }} evaluations }
+                }
+              </td>
+              <td class="num">{{ result.summary[s.id].mean_score | number:'1.2-2' }}</td>
+              <td class="num">{{ result.summary[s.id].mean_cost_ratio | number:'1.3-3' }}</td>
+              <td class="num">{{ result.summary[s.id].worst_cost_ratio | number:'1.3-3' }}</td>
+              <td class="num">{{ result.summary[s.id].mean_expanded | number:'1.0-0' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="help">Mean regret of the fixed solution (its score minus the re-tuned score on the same map):
+      <b>{{ result.summary.fixed.mean_regret | number:'1.2-2' }}</b>. Re-tuning grid: w from {{ result.grid.weight_min }} to
+      {{ result.grid.weight_max }} by {{ result.grid.weight_step }}, heuristics {{ result.grid.heuristics.join(', ') }}.
+      Scores include search time, which is noisy on small maps.</p>
+    <h3>Per configuration</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Configuration</th><th class="num">Fixed</th><th class="num">Cost / opt.</th><th class="num">Classic A*</th>
+          <th class="num">Robust</th><th class="num">Re-tuned</th><th>Best pair here</th><th class="num">Regret</th></tr></thead>
+        <tbody>
+          @for (row of result.rows; track $index) {
+            <tr>
+              <td class="map">{{ row.label }}</td>
+              <td class="num">{{ row.fixed.score | number:'1.2-2' }}</td>
+              <td class="num" [class.bad]="(row.fixed.cost_ratio ?? 1) > 1.0001">{{ row.fixed.cost_ratio | number:'1.3-3' }}</td>
+              <td class="num">{{ row.reference.score | number:'1.2-2' }}</td>
+              <td class="num">{{ row.robust.score | number:'1.2-2' }}</td>
+              <td class="num">{{ row.retuned.score | number:'1.2-2' }}</td>
+              <td>{{ heuristicLabel(row.retuned.heuristic) }}, {{ row.retuned.weight }}</td>
+              <td class="num">{{ row.fixed.regret | number:'1.2-2' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

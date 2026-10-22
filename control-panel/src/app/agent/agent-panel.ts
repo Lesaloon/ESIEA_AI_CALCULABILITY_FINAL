@@ -77,7 +77,8 @@ export class AgentPanel {
   readonly locked = computed(() => !!this.tuned() && this.paramValue('lock_heuristic', 0) === 1);
   // The configured heuristic and weight matter only when nothing tunes them: a locked heuristic
   // is used as is, and hill climbing starts from them.
-  readonly showHeuristic = computed(() => this.algorithm() === 'astar' && (!this.tuned() || this.locked() || !!this.tuned()?.uses_start));
+  readonly showHeuristic = computed(() => this.algorithm() === 'greedy'
+    || (this.algorithm() === 'astar' && (!this.tuned() || this.locked() || !!this.tuned()?.uses_start)));
   readonly showWeight = computed(() => this.algorithm() === 'astar' && (!this.tuned() || !!this.tuned()?.uses_start));
   readonly paramGroups = computed(() => {
     const groups = new Map<string, OptimizerParam[]>();

@@ -3,7 +3,7 @@
     <div><p class="eyebrow">Heuristic search laboratory</p><h2 id="agent-title">Agent execution</h2></div>
     <span class="availability" role="status">{{ sim.state()?.status ?? 'Connecting…' }}</span>
   </header>
-  <p class="intro">The agent knows the complete map. Choose Dijkstra or weighted A* to compute a route, then follow it one move per turn. The agent stops at the goal without exploring other cells.</p>
+  <p class="intro">The agent knows the complete map. Choose Dijkstra, weighted A* or greedy best-first to compute a route, then follow it one move per turn. The agent stops at the goal without exploring other cells.</p>
 
   <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
     <legend class="sr-only">Run configuration</legend>
@@ -13,7 +13,7 @@
         <label class="algorithm">Algorithm
           <select #algorithmInput [value]="algorithm()" (change)="algorithm.set(algorithmInput.value)">
             @for (item of sim.algorithms(); track item.id) {
-              <option [value]="item.id">{{ item.label }}</option>
+              <option [value]="item.id" [selected]="item.id === algorithm()">{{ item.label }}</option>
             }
           </select>
         </label>
@@ -40,7 +40,7 @@
           <label class="algorithm">Optimizer
             <select #optimizerInput [value]="optimizer()" (change)="setOptimizer(optimizerInput.value)">
               <option value="none">None · use the values above</option>
-              @for (item of sim.optimizers(); track item.id) { <option [value]="item.id">{{ item.label }}</option> }
+              @for (item of sim.optimizers(); track item.id) { <option [value]="item.id" [selected]="item.id === optimizer()">{{ item.label }}</option> }
             </select>
           </label>
         </div>
