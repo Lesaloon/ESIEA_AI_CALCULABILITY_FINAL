@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { DecimalPipe, JsonPipe } from '@angular/common';
+import { DecimalPipe, JsonPipe, NgTemplateOutlet } from '@angular/common';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { EnvironmentStore } from '../environment/environment-store';
 import { GridSearchReport, SimulationStore } from '../simulation-store';
@@ -7,7 +7,7 @@ import { SimulationGrid } from '../simulation-grid';
 
 @Component({
   selector: 'app-agent-panel',
-  imports: [HlmButton, SimulationGrid, DecimalPipe, JsonPipe],
+  imports: [HlmButton, SimulationGrid, DecimalPipe, JsonPipe, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './agent-panel.html',
   styleUrl: './agent-panel.css',
@@ -18,10 +18,15 @@ export class AgentPanel {
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
   readonly weight = signal(1);
+  readonly searchMode = signal<'grid' | 'random'>('grid');
   readonly searchLow = signal(1);
   readonly searchHigh = signal(10);
   readonly searchStep = signal(1);
   readonly report = signal<GridSearchReport | null>(null);
+  readonly randomLow = signal(1);
+  readonly randomHigh = signal(50);
+  readonly randomCount = signal(10);
+  readonly randomReport = signal<GridSearchReport | null>(null);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -60,6 +65,10 @@ export class AgentPanel {
     const low = this.searchLow(), high = this.searchHigh(), step = this.searchStep();
     return [low, high, step].every(Number.isFinite) && low >= 1 && high >= low && step > 0 && (high - low) / step <= 200;
   });
+  readonly randomValid = computed(() => {
+    const low = this.randomLow(), high = this.randomHigh(), count = this.randomCount();
+    return [low, high].every(Number.isFinite) && Number.isInteger(count) && count >= 1 && count <= 200 && low >= 1 && high >= low;
+  });
   readonly selectedAlgorithm = computed(() => this.sim.algorithms().find(a => a.id === this.algorithm()));
 
   constructor() {
@@ -87,13 +96,27 @@ export class AgentPanel {
   }
 
   async compareWeights() {
-    const grid = this.sim.runGrid() ?? this.env.grid();
-    const { start, goal } = this.sim.scenario();
-    if (!grid || !start || !goal) return;
+    const target = this.searchTarget();
+    if (!target) return;
     const report = await this.sim.gridSearch({
-      heuristic: this.heuristic(), low: this.searchLow(), high: this.searchHigh(), step: this.searchStep(),
-      start, goal, weights: grid.weights,
+      ...target, low: this.searchLow(), high: this.searchHigh(), step: this.searchStep(),
     });
     if (report) this.report.set(report);
+  }
+
+  async drawWeights() {
+    const target = this.searchTarget();
+    if (!target) return;
+    const report = await this.sim.randomSearch({
+      ...target, low: this.randomLow(), high: this.randomHigh(), count: this.randomCount(),
+    });
+    if (report) this.randomReport.set(report);
+  }
+
+  private searchTarget() {
+    const grid = this.sim.runGrid() ?? this.env.grid();
+    const { start, goal } = this.sim.scenario();
+    if (!grid || !start || !goal) return null;
+    return { heuristic: this.heuristic(), start, goal, weights: grid.weights };
   }
 }

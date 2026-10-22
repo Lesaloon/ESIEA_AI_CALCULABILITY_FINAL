@@ -32,28 +32,49 @@
     <p class="help">This heuristic can overestimate path cost with eight-way movement; A* optimality is not guaranteed.</p>
   }
   @if (algorithm() === 'weighted_astar') {
-    <section class="grid-search" aria-labelledby="grid-search-title">
-      <h3 id="grid-search-title">Grid search on w</h3>
-      <p class="help">Compare weighted A* for each w between the bounds, on the map shown below. The search does not move the agent. Click a row to keep that w for the next run.</p>
-      <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
-        <legend class="sr-only">Grid search bounds</legend>
-        <label>Lower bound<input #lowInput type="number" min="1" step="0.1" [value]="searchLow()" (input)="searchLow.set(lowInput.valueAsNumber)"></label>
-        <label>Upper bound<input #highInput type="number" min="1" step="0.1" [value]="searchHigh()" (input)="searchHigh.set(highInput.valueAsNumber)"></label>
-        <label>Step<input #stepInput type="number" min="0.1" step="0.1" [value]="searchStep()" (input)="searchStep.set(stepInput.valueAsNumber)"></label>
-      </fieldset>
-      <div class="actions">
-        <button hlmBtn [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal || !searchValid()"
-          (click)="compareWeights()">Compare</button>
+    <section class="weight-search">
+      <div class="search-tabs" role="tablist" aria-label="Weight search method">
+        <button type="button" role="tab" id="grid-search-tab" [attr.aria-selected]="searchMode() === 'grid'" (click)="searchMode.set('grid')">Grid search</button>
+        <button type="button" role="tab" id="random-search-tab" [attr.aria-selected]="searchMode() === 'random'" (click)="searchMode.set('random')">Random search</button>
       </div>
-      @if (report(); as report) {
+      @if (searchMode() === 'grid') {
+        <h3 id="grid-search-title">Grid search on w</h3>
+        <p class="help">Compare weighted A* for each w between the bounds, on the map shown below. The search does not move the agent. Click a row to keep that w for the next run.</p>
+        <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
+          <legend class="sr-only">Grid search bounds</legend>
+          <label>Lower bound<input #lowInput type="number" min="1" step="0.1" [value]="searchLow()" (input)="searchLow.set(lowInput.valueAsNumber)"></label>
+          <label>Upper bound<input #highInput type="number" min="1" step="0.1" [value]="searchHigh()" (input)="searchHigh.set(highInput.valueAsNumber)"></label>
+          <label>Step<input #stepInput type="number" min="0.1" step="0.1" [value]="searchStep()" (input)="searchStep.set(stepInput.valueAsNumber)"></label>
+        </fieldset>
+        <div class="actions">
+          <button hlmBtn [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal || !searchValid()"
+            (click)="compareWeights()">Compare</button>
+        </div>
+        @if (report(); as report) { <ng-container *ngTemplateOutlet="searchResults; context: { $implicit: report }" /> }
+      } @else {
+        <h3 id="random-search-title">Random search on w</h3>
+        <p class="help">Draw random values of w between the bounds. There is no step. The search does not move the agent. Click a row to keep that w for the next run.</p>
+        <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
+          <legend class="sr-only">Random search bounds</legend>
+          <label>Lower bound<input #randomLowInput type="number" min="1" step="0.1" [value]="randomLow()" (input)="randomLow.set(randomLowInput.valueAsNumber)"></label>
+          <label>Upper bound<input #randomHighInput type="number" min="1" step="0.1" [value]="randomHigh()" (input)="randomHigh.set(randomHighInput.valueAsNumber)"></label>
+          <label>Samples<input #countInput type="number" min="1" max="200" step="1" [value]="randomCount()" (input)="randomCount.set(countInput.valueAsNumber)"></label>
+        </fieldset>
+        <div class="actions">
+          <button hlmBtn [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal || !randomValid()"
+            (click)="drawWeights()">Compare</button>
+        </div>
+        @if (randomReport(); as report) { <ng-container *ngTemplateOutlet="searchResults; context: { $implicit: report }" /> }
+      }
+      <ng-template #searchResults let-report>
         <div class="history-scroll">
           <table>
-            <caption class="sr-only">Weighted A* grid search results</caption>
+            <caption class="sr-only">Weighted A* search results</caption>
             <thead><tr><th>w</th><th>Cost</th><th>Nodes</th><th>Duration (ms)</th><th>Score</th></tr></thead>
             <tbody>
-              @for (trial of report.trials; track trial.w) {
+              @for (trial of report.trials; track $index) {
                 <tr [class.best]="trial.w === report.best.w" (click)="weight.set(trial.w)">
-                  <td>{{ trial.w | number:'1.0-2' }}@if (trial.w === report.best.w) { <span class="best-mark">Best</span> }</td>
+                  <td>{{ trial.w | number:'1.0-3' }}@if (trial.w === report.best.w) { <span class="best-mark">Best</span> }</td>
                   <td>{{ trial.cost === null ? '—' : (trial.cost | number:'1.0-2') }}</td>
                   <td>{{ trial.expansions }}</td>
                   <td>{{ trial.duration * 1000 | number:'1.0-3' }}</td>
@@ -67,7 +88,7 @@
           <p class="help">No route for these weights.</p>
         } @else {
           <section class="best-result" aria-label="Best weight">
-            <div class="best-result-heading"><h3>Best result</h3><span>w = {{ report.best.w | number:'1.0-2' }}</span></div>
+            <div class="best-result-heading"><h3>Best result</h3><span>w = {{ report.best.w | number:'1.0-3' }}</span></div>
             <dl class="metrics">
               <div><dt>Cost</dt><dd>{{ report.best.cost | number:'1.0-2' }}</dd></div>
               <div><dt>Nodes</dt><dd>{{ report.best.expansions }}</dd></div>
@@ -76,7 +97,7 @@
             </dl>
           </section>
         }
-      }
+      </ng-template>
     </section>
   }
   <div class="actions">

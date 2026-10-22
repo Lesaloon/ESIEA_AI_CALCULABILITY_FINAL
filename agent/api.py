@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from math import inf, isfinite
 
 from agent.algorithms.grid_search import graph_from_weights, grid_search
+from agent.algorithms.random_search import random_search
 from agent.environment_client import EnvironmentClient
 from agent.registry import ALGORITHMS
 from agent.runner import Runner, RunnerError
@@ -33,6 +34,16 @@ class GridSearchConfiguration(BaseModel):
     low: float = Field(default=1, ge=1)
     high: float = Field(default=10, ge=1)
     step: float = Field(default=1, gt=0)
+    start: GridPoint
+    goal: GridPoint
+    weights: list[list[float | None]] = Field(min_length=1, max_length=40)
+
+
+class RandomSearchConfiguration(BaseModel):
+    heuristic: str = 'l1'
+    low: float = Field(default=1, ge=1)
+    high: float = Field(default=50, ge=1)
+    count: int = Field(default=10, ge=1, le=200, strict=True)
     start: GridPoint
     goal: GridPoint
     weights: list[list[float | None]] = Field(min_length=1, max_length=40)
@@ -115,18 +126,27 @@ def _public_trial(trial):
 
 @app.post('/grid-search')
 async def search_weights(body: GridSearchConfiguration):
+    if int((body.high - body.low) / body.step + 1e-9) + 1 > 200:
+        raise HTTPException(422, 'Too many values; increase the step')
+    return _publish_search(body, lambda graph, start, goal: grid_search(
+        graph, start, goal, body.heuristic, body.low, body.high, body.step))
+
+
+@app.post('/random-search')
+async def draw_weights(body: RandomSearchConfiguration):
+    return _publish_search(body, lambda graph, start, goal: random_search(
+        graph, start, goal, body.heuristic, body.low, body.high, body.count))
+
+
+def _publish_search(body, search):
     if body.heuristic not in HEURISTICS:
         raise HTTPException(422, 'Unknown heuristic')
     if body.low > body.high:
         raise HTTPException(422, 'The lower bound must not exceed the upper bound')
-    if int((body.high - body.low) / body.step + 1e-9) + 1 > 200:
-        raise HTTPException(422, 'Too many values; increase the step')
     try:
         _require_walkable(body.weights, body.start, 'Start')
         _require_walkable(body.weights, body.goal, 'Goal')
-        report = grid_search(
-            graph_from_weights(body.weights), (body.start.x, body.start.y), (body.goal.x, body.goal.y),
-            body.heuristic, body.low, body.high, body.step)
+        report = search(graph_from_weights(body.weights), (body.start.x, body.start.y), (body.goal.x, body.goal.y))
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     trials = [_public_trial(trial) for trial in report['trials']]

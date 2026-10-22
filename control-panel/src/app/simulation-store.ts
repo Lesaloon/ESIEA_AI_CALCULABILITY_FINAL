@@ -28,6 +28,10 @@ export interface GridSearchRequest {
   heuristic: string; low: number; high: number; step: number;
   start: Position; goal: Position; weights: (number | null)[][];
 }
+export interface RandomSearchRequest {
+  heuristic: string; low: number; high: number; count: number;
+  start: Position; goal: Position; weights: (number | null)[][];
+}
 export interface Algorithm { id: string; label: string; description: string; }
 export interface AgentState {
   status: string; error: string; config: RunConfig | null; knowledge: KnownCell[]; history_count: number;
@@ -120,9 +124,17 @@ export class SimulationStore implements OnDestroy {
   }
 
   async gridSearch(body: GridSearchRequest): Promise<GridSearchReport | null> {
+    return this._weightSearch('/api/agent/grid-search', body);
+  }
+
+  async randomSearch(body: RandomSearchRequest): Promise<GridSearchReport | null> {
+    return this._weightSearch('/api/agent/random-search', body);
+  }
+
+  private async _weightSearch(url: string, body: GridSearchRequest | RandomSearchRequest): Promise<GridSearchReport | null> {
     let report: GridSearchReport | null = null;
     await this.command(async () => {
-      report = await firstValueFrom(this.http.post<GridSearchReport>('/api/agent/grid-search', body).pipe(timeout(20000)));
+      report = await firstValueFrom(this.http.post<GridSearchReport>(url, body).pipe(timeout(20000)));
     });
     return report;
   }
