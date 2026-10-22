@@ -8,6 +8,7 @@ from agent.planners.breadth_first import BreadthFirstPlanner
 from agent.planners.template import AStarPlanner, DijkstraPlanner
 from agent.planners.depth_first import DepthFirstPlanner
 from agent.planners.greedy import GreedyPlanner
+from agent.planners.weighted_a_star import WeightedAStarPlanner
 
 @dataclass(frozen=True)
 class Algorithm:
@@ -29,6 +30,6 @@ ALGORITHMS = {
                      lambda config: Explorer(DepthFirstPlanner())),
     'greedy': Algorithm('Greedy best-first', 'Follows the heuristic only; not optimal.',
                         lambda config: Explorer(GreedyPlanner(config.heuristic))),
-    'template': Algorithm('Algo policy', 'Implement a complete local-observation policy.',
-                         lambda config: AlgoPolicy(), enabled=False),
+    'weightedastar': Algorithm('Weighted A*', 'Implement heuristic shortest-path planning.',
+                        lambda config: Explorer(WeightedAStarPlanner(config.heuristic))),
 }
