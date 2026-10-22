@@ -104,6 +104,137 @@
   }
 </section>
 
+<section aria-labelledby="tune-title">
+  <header class="heading">
+    <div><p class="eyebrow">Fixed configuration · parameter search</p><h2 id="tune-title">Optimization on a fixed configuration</h2></div>
+    <span class="availability" role="status">{{ tuneBusy() ? 'Running…' : tuneResult() ? 'Done' : 'Ready' }}</span>
+  </header>
+  <p class="intro">Search the weighted A* pair (heuristic h, weight w) that minimizes the score
+    <b>cost·C/C<sub>ref</sub> + time·T/T<sub>ref</sub> + memory·M/M<sub>ref</sub></b>, where the reference is classic A*
+    (L∞, w = 1) on the same map. All selected methods run on the same generated map and share one cache, so they see the
+    same score for the same pair: they differ only by the points they choose to try. The curve shows the score for every
+    w from a to b, one line per heuristic; numbered markers are the pairs each method returned.</p>
+
+  <fieldset class="configuration" [disabled]="tuneBusy()">
+    <legend class="sr-only">Fixed configuration and search settings</legend>
+    <div class="block">
+      <h4>Fixed configuration (map)</h4>
+      <div class="fields">
+        <label>Grid size<input #fSizeInput type="number" min="8" max="40" step="1" [value]="fSize()" (input)="fSize.set(fSizeInput.valueAsNumber)"></label>
+        <label>Connectivity
+          <select #fConnInput [value]="fConnectivity()" (change)="fConnectivity.set(+fConnInput.value)">
+            <option value="8" [selected]="fConnectivity() === 8">8 neighbors</option><option value="4" [selected]="fConnectivity() === 4">4 neighbors</option>
+          </select>
+        </label>
+        <label>Obstacle
+          <select #fObsInput (change)="fObstacle.set(fObsInput.value)">
+            @for (o of obstacles; track o.id) { <option [value]="o.id" [selected]="o.id === fObstacle()">{{ o.label }}</option> }
+          </select>
+        </label>
+        <label>Cell weights
+          <select #fWeightsInput (change)="fWeights.set(fWeightsInput.value === 'uniform' ? 'uniform' : 'random')">
+            <option value="random" [selected]="fWeights() === 'random'">Random 1–9</option><option value="uniform" [selected]="fWeights() === 'uniform'">All 1</option>
+          </select>
+        </label>
+        <label>Map seed<input #fSeedInput type="number" min="0" step="1" [value]="fSeed()" (input)="fSeed.set(fSeedInput.valueAsNumber)"></label>
+      </div>
+      <h5>Scoring importance</h5>
+      <div class="fields">
+        <label>Cost<input #fCInput type="number" min="0" max="10" step="0.1" [value]="fCost()" (input)="fCost.set(fCInput.valueAsNumber)"></label>
+        <label>Time<input #fTInput type="number" min="0" max="10" step="0.1" [value]="fTime()" (input)="fTime.set(fTInput.valueAsNumber)"></label>
+        <label>Memory<input #fMInput type="number" min="0" max="10" step="0.1" [value]="fMemory()" (input)="fMemory.set(fMInput.valueAsNumber)"></label>
+      </div>
+    </div>
+    <div class="block">
+      <h4>Search methods</h4>
+      <div class="choice"><span>Methods to compare</span>
+        @for (o of optimizerChoices; track o.id) {
+          <label class="chip"><input type="checkbox" [checked]="fOptimizers().includes(o.id)" (change)="toggle(fOptimizers, o.id)">{{ o.label }}</label>
+        }
+      </div>
+      <div class="fields">
+        <label>Start heuristic
+          <select #fHInput (change)="fHeuristic.set(fHInput.value)">
+            @for (h of heuristics; track h.id) { <option [value]="h.id" [selected]="h.id === fHeuristic()">{{ h.label }}</option> }
+          </select>
+        </label>
+        <label>Start w<input #fWInput type="number" min="1" max="20" step="0.1" [value]="fWeight()" (input)="fWeight.set(fWInput.valueAsNumber)"></label>
+      </div>
+      <label class="flag"><input type="checkbox" [checked]="fLock()" (change)="fLock.set(!fLock())"> Lock the heuristic (tune only w)</label>
+      <h5>Search space and parameters</h5>
+      <div class="fields">
+        <label>a · Weight min<input #fMinInput type="number" min="1" max="20" step="0.1" [value]="fMin()" (input)="fMin.set(fMinInput.valueAsNumber)"></label>
+        <label>b · Weight max<input #fMaxInput type="number" min="1" max="20" step="0.1" [value]="fMax()" (input)="fMax.set(fMaxInput.valueAsNumber)"></label>
+        <label>c · Grid step<input #fGridInput type="number" min="0.1" max="5" step="0.1" [value]="fGridStep()" (input)="fGridStep.set(fGridInput.valueAsNumber)"></label>
+        <label>Local step (±)<input #fStepInput type="number" min="0.1" max="5" step="0.1" [value]="fStep()" (input)="fStep.set(fStepInput.valueAsNumber)"></label>
+        <label>Iterations<input #fIterInput type="number" min="1" max="100" step="1" [value]="fIterations()" (input)="fIterations.set(fIterInput.valueAsNumber)"></label>
+        <label>Random draws<input #fTrialsInput type="number" min="1" max="200" step="1" [value]="fTrials()" (input)="fTrials.set(fTrialsInput.valueAsNumber)"></label>
+        <label>Temperature<input #fTempInput type="number" min="0" max="1" step="0.05" [value]="fTemperature()" (input)="fTemperature.set(fTempInput.valueAsNumber)"></label>
+        <label>Cooling<input #fCoolInput type="number" min="0.5" max="1" step="0.01" [value]="fCooling()" (input)="fCooling.set(fCoolInput.valueAsNumber)"></label>
+        <label>Random seed<input #fRSeedInput type="number" min="0" step="1" [value]="fRandomSeed()" (input)="fRandomSeed.set(fRSeedInput.valueAsNumber)"></label>
+      </div>
+    </div>
+  </fieldset>
+  <div class="actions">
+    <button hlmBtn [disabled]="tuneBusy() || !fOptimizers().length" (click)="runTune()">{{ tuneBusy() ? 'Optimizing…' : 'Run the search methods' }}</button>
+  </div>
+  @if (tuneError()) { <p class="error" role="alert">{{ tuneError() }}</p> }
+
+  @if (tuneResult(); as result) {
+    <p class="help">{{ result.label }} · optimal route cost {{ result.optimal_cost }} · reference classic A*:
+      cost {{ result.reference.cost }}, {{ result.reference.time_ms | number:'1.2-2' }} ms, {{ result.reference.memory_kb | number:'1.0-0' }} KB
+      (score ≈ {{ fCost() + fTime() + fMemory() }}) · {{ result.distinct_evaluations }} distinct pairs evaluated in total.</p>
+    @if (plot(); as plot) {
+      <figure class="chart">
+        <svg [attr.viewBox]="'0 0 ' + chart.width + ' ' + chart.height" role="img" aria-label="Score as a function of w, one line per heuristic">
+          @for (t of plot.yTicks; track $index) {
+            <line [attr.x1]="chart.left" [attr.x2]="chart.width - chart.right" [attr.y1]="t.y" [attr.y2]="t.y" class="grid-line" />
+            <text [attr.x]="chart.left - 6" [attr.y]="t.y + 3" text-anchor="end" class="tick">{{ t.label }}</text>
+          }
+          @for (t of plot.xTicks; track $index) {
+            <text [attr.x]="t.x" [attr.y]="chart.height - 10" text-anchor="middle" class="tick">{{ t.label }}</text>
+          }
+          @for (c of plot.curves; track c.heuristic) {
+            <polyline [attr.points]="c.points" fill="none" [attr.stroke]="c.color" stroke-width="2" />
+          }
+          @for (m of plot.markers; track $index) {
+            <circle [attr.cx]="m.x" [attr.cy]="m.y" r="8" fill="white" [attr.stroke]="m.color" stroke-width="2"><title>{{ m.name }}</title></circle>
+            <text [attr.x]="m.x" [attr.y]="m.y + 3.5" text-anchor="middle" class="marker">{{ m.label }}</text>
+          }
+        </svg>
+        <figcaption>
+          <span class="muted">x = w, y = score (lower is better).</span>
+          @for (c of plot.curves; track c.heuristic) { <span class="key"><i [style.background]="c.color"></i>{{ heuristicLabel(c.heuristic) }}</span> }
+        </figcaption>
+      </figure>
+    }
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>#</th><th>Method</th><th>Pair found (h, w)</th><th class="num">Score</th><th class="num">Cost / opt.</th>
+          <th class="num">Time ms</th><th class="num">Memory KB</th><th class="num">Expanded</th><th class="num">Evaluations</th></tr></thead>
+        <tbody>
+          @for (m of result.methods; track m.id; let i = $index) {
+            <tr [class.selected]="m === bestMethod()">
+              <td>{{ i + 1 }}</td><td>{{ m.label }}</td><td>{{ heuristicLabel(m.heuristic) }}, {{ m.weight }}</td>
+              <td class="num">{{ m.score | number:'1.3-3' }}</td>
+              <td class="num" [class.bad]="(m.cost_ratio ?? 1) > 1.0001">{{ m.cost_ratio | number:'1.3-3' }}</td>
+              <td class="num">{{ m.time_ms | number:'1.2-2' }}</td><td class="num">{{ m.memory_kb | number:'1.0-0' }}</td>
+              <td class="num">{{ m.expanded }}</td><td class="num">{{ m.evaluations }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <button hlmBtn variant="outline" class="use-tuning" [disabled]="!bestMethod()" (click)="useBestTune()">
+        Test the best pair on variable configurations ↓</button>
+    </div>
+    <details><summary>Map used — S start, G goal, # obstacle, digits = cell weight</summary>
+      <pre>{{ previewText(result) }}</pre>
+    </details>
+  }
+</section>
+
 <section aria-labelledby="transfer-title">
   <header class="heading">
     <div><p class="eyebrow">Fixed solution → variable configurations</p><h2 id="transfer-title">Generalization</h2></div>

@@ -265,3 +265,74 @@ def transfer(heuristic='linf', weight=2.0, sizes=(10, 20, 30), connectivities=(4
     return dict(solution=dict(heuristic=heuristic, weight=weight), rows=rows, summary=summary,
                 grid=dict(weight_min=weight_min, weight_max=weight_max, weight_step=weight_step,
                           heuristics=list(grid.heuristics(heuristic))))
+
+
+def tune(size=20, connectivity=8, obstacle='u', weights='random', seed=0,
+         optimizers=('grid', 'random', 'hill_climbing', 'simulated_annealing', 'tabu'),
+         heuristic='l1', weight=2.0, params=None, landscape_step=0.25):
+    """Run several optimizers on the same generated map (the fixed configuration).
+
+    One Evaluator is shared, so every method sees exactly the same score for a given
+    (heuristic, weight): differences between methods come from the points they choose
+    to evaluate, not from timing noise. `params` holds the optimizer settings
+    (weight_min = a, weight_max = b, weight_step = c, step, max_iterations, trials,
+    temperature, cooling, seed, lock_heuristic and the three importances); each
+    optimizer takes the ones it declares.
+    """
+    from agent.algorithms.optimizers import CRITERIA, HEURISTICS, LOCK
+    from agent.registry import OPTIMIZERS
+
+    params = dict(params or {})
+    unknown = set(params) - {p.id for key in optimizers if key in OPTIMIZERS for p in OPTIMIZERS[key].params}
+    if unknown:
+        raise ValueError(f'Unknown parameter: {", ".join(sorted(unknown))}')
+    config = MapConfig(size, connectivity, obstacle, weights, seed)
+    graph, start, goal, preview = build_map(config)
+    importance = {p.id: params.get(p.id, p.default) for p in CRITERIA}
+    evaluate = Evaluator(graph, start, goal, importance)
+    optimal = path_cost(graph, Dijkstra().search(graph, start, goal, trace=False).path)
+    methods = []
+    for key in optimizers:
+        if key not in OPTIMIZERS:
+            raise ValueError(f'Unknown optimizer {key!r}')
+        cls = OPTIMIZERS[key]
+        optimizer = cls({p.id: params[p.id] for p in cls.params if p.id in params})
+        order = []
+
+        def tracked(h, w, order=order):
+            point = (h, round(w, 3))
+            if point not in order:
+                order.append(point)
+            return evaluate(h, w)
+
+        first = heuristic if optimizer.values[LOCK.id] or heuristic in HEURISTICS else 'l1'
+        best_h, best_w = optimizer.optimize(tracked, first, weight)
+        score = evaluate(best_h, best_w)
+        trial = next(t for t in evaluate.trials if (t['heuristic'], t['weight']) == (best_h, round(best_w, 3)))
+        methods.append(dict(id=key, label=cls.label, heuristic=best_h, weight=round(best_w, 3),
+                            score=None if score == inf else score, cost=trial['cost'],
+                            cost_ratio=trial['cost'] / optimal if trial['cost'] is not None else None,
+                            time_ms=trial['time_ms'], memory_kb=trial['memory_kb'], expanded=trial['expanded'],
+                            evaluations=len(order),
+                            visited=[dict(heuristic=h, weight=w, score=evaluate(h, w)) for h, w in order]))
+    # Reference curve: score(w) for each heuristic, from a to b (cached, so shared with the methods).
+    low = params.get('weight_min', 1.0)
+    high = params.get('weight_max', 5.0)
+    locked = bool(params.get('lock_heuristic', 0))
+    count = int((high - low) / landscape_step + 1e-9)
+    if count > 200:
+        raise ValueError('Landscape too fine: use a smaller weight range')
+    landscape = []
+    for h in ((heuristic,) if locked else HEURISTICS):
+        points = []
+        for i in range(count + 1):
+            w = round(low + i * landscape_step, 3)
+            s = evaluate(h, w)
+            points.append(dict(weight=w, score=None if s == inf else s))
+        landscape.append(dict(heuristic=h, points=points))
+    for method in methods:
+        for point in method['visited']:
+            point['score'] = None if point['score'] == inf else point['score']
+    return dict(config=config.__dict__, label=config.label, preview=preview, optimal_cost=optimal,
+                reference=evaluate.reference, methods=methods, landscape=landscape,
+                distinct_evaluations=len(evaluate.trials))

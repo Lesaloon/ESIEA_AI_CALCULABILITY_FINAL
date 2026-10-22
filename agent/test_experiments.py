@@ -9,7 +9,7 @@ from agent.algorithms.dijkstra import Dijkstra
 from agent.algorithms.greedy import Greedy
 from agent.algorithms.optimizers import SimulatedAnnealing, TabuSearch, path_cost
 from agent.api import app
-from agent.experiments import MapConfig, admissible, benchmark, build_map, obstacle_cells, transfer
+from agent.experiments import MapConfig, admissible, benchmark, build_map, obstacle_cells, transfer, tune
 from agent.test_optimizers import open_grid
 
 
@@ -126,6 +126,28 @@ class ExperimentTests(TestCase):
                      weight_max=20)
 
 
+class TuneTests(TestCase):
+    def test_methods_share_the_same_scores_and_the_grid_finds_the_landscape_minimum(self):
+        params = dict(weight_min=1, weight_max=3, weight_step=0.5, step=0.5, time_weight=0)
+        result = tune(size=12, connectivity=8, obstacle='u', params=params)
+        self.assertEqual({m['id'] for m in result['methods']},
+                         {'grid', 'random', 'hill_climbing', 'simulated_annealing', 'tabu'})
+        landscape_best = min(p['score'] for curve in result['landscape'] for p in curve['points']
+                             if p['score'] is not None and (p['weight'] * 2).is_integer())
+        grid = next(m for m in result['methods'] if m['id'] == 'grid')
+        self.assertAlmostEqual(grid['score'], landscape_best)
+        for method in result['methods']:
+            self.assertGreaterEqual(method['score'], landscape_best - 1e-9)
+            self.assertGreaterEqual(method['cost_ratio'], 1 - 1e-9)
+            self.assertEqual(method['evaluations'], len(method['visited']))
+
+    def test_locked_heuristic_draws_a_single_curve(self):
+        result = tune(size=10, optimizers=['hill_climbing'], heuristic='linf',
+                      params=dict(lock_heuristic=1, weight_max=2))
+        self.assertEqual([c['heuristic'] for c in result['landscape']], ['linf'])
+        self.assertEqual(result['methods'][0]['heuristic'], 'linf')
+
+
 class ApiTests(TestCase):
     def setUp(self):
         self.client = TestClient(app)
@@ -145,6 +167,16 @@ class ApiTests(TestCase):
             with self.subTest(body=body):
                 url = '/experiments/benchmark' if 'heuristics' in body else '/experiments/transfer'
                 self.assertEqual(self.client.post(url, json=body).status_code, 422)
+
+    def test_tune_endpoint_and_validation(self):
+        response = self.client.post('/experiments/tune', json=dict(size=10, optimizers=['grid', 'tabu'],
+                                                                   params=dict(weight_max=2, weight_step=1)))
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(len(response.json()['methods']), 2)
+        for body in (dict(params=dict(weight_min=4, weight_max=2)), dict(params=dict(bogus=1)),
+                     dict(optimizers=['nope']), dict(size=60)):
+            with self.subTest(body=body):
+                self.assertEqual(self.client.post('/experiments/tune', json=body).status_code, 422)
 
     def test_new_optimizers_and_algorithm_are_listed(self):
         ids = {o['id'] for o in self.client.get('/optimizers').json()}

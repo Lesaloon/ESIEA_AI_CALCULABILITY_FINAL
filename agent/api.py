@@ -58,6 +58,20 @@ class TransferRequest(MapSelection):
     memory_weight: float = Field(default=1.0, ge=0, le=10)
 
 
+class TuneRequest(BaseModel):
+    """One generated map (the fixed configuration) and the optimizers to compare on it."""
+    size: int = Field(default=20, ge=8, le=40)
+    connectivity: Literal[4, 8] = 8
+    obstacle: Obstacle = 'u'
+    weights: Literal['random', 'uniform'] = 'random'
+    seed: int = Field(default=0, ge=0, le=1_000_000)
+    optimizers: list[Literal['grid', 'random', 'hill_climbing', 'simulated_annealing', 'tabu']] = Field(
+        default=['grid', 'random', 'hill_climbing', 'simulated_annealing', 'tabu'], min_length=1, max_length=5)
+    heuristic: Heuristic = 'l1'
+    weight: float = Field(default=2.0, ge=1, le=20)
+    params: dict[str, float] = Field(default_factory=dict)
+
+
 @asynccontextmanager
 async def lifespan(app):
     client = EnvironmentClient()
@@ -130,6 +144,12 @@ async def transfer(body: TransferRequest):
     if not any(values[k] for k in ('cost_weight', 'time_weight', 'memory_weight')):
         raise HTTPException(422, 'At least one importance must be above zero')
     return await experiment(experiments.transfer, **values)
+
+
+@app.post('/experiments/tune')
+async def tune(body: TuneRequest):
+    """Compare the optimizers on one generated map, with the score landscape for reference."""
+    return await experiment(experiments.tune, **body.model_dump())
 
 
 @app.get('/state')

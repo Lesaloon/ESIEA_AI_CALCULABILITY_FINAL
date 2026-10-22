@@ -52,3 +52,12 @@ figcaption { font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px
 pre { font: 10px/1.15 ui-monospace, monospace; letter-spacing: 1px; background: var(--secondary); padding: 8px; border-radius: 4px; overflow: auto; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 @media (max-width: 480px) { section { padding: 16px; } .fields input, select { width: 100%; } }
+.chart { margin: 12px 0 16px; }
+.chart svg { width: 100%; height: auto; display: block; background: white; border: 1px solid #e4ebf3; border-radius: 6px; }
+.grid-line { stroke: #e4ebf3; }
+.tick { font: 10px ui-monospace, monospace; fill: var(--muted-foreground); }
+.marker { font: 600 9px ui-monospace, monospace; fill: var(--foreground); }
+.chart figcaption { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; font-size: 11px; align-items: center; }
+.key { display: inline-flex; align-items: center; gap: 5px; }
+.key i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.selected { background: #eaf4f5; }
