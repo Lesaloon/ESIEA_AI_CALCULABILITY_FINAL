@@ -1,6 +1,6 @@
 :host { display: block; }
-main { max-width: 760px; margin: 0 auto; padding: 40px 24px; }
-header { margin-bottom: 28px; }
+main { max-width: 1040px; margin: 0 auto; padding: 24px 16px; }
+header { margin-bottom: 20px; }
 .project { font-size: 12px; color: var(--muted-foreground); margin-bottom: 6px; }
 h1 { font-family: 'Trebuchet MS', sans-serif; font-size: 30px; font-weight: 700; letter-spacing: -1px; }
 .workspace-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
