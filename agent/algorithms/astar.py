@@ -14,11 +14,14 @@ class AStar:
     def estimate(self, node, target):
         return distance(node, target, self.heuristic)
 
+    def priority(self, cost, heuristic):
+        return cost + heuristic
+
     def search(self, graph, start, target):
         costs = {start: 0.0}
         heuristics = {start: self.estimate(start, target)}
         parent = {start: None}
-        frontier = [(heuristics[start], start, 0.0)]
+        frontier = [(self.priority(0.0, heuristics[start]), start, 0.0)]
         expanded_at = {}
         expanded = []
         path = []
@@ -41,12 +44,12 @@ class AStar:
                     costs[neighbor] = candidate_cost
                     heuristics[neighbor] = self.estimate(neighbor, target)
                     parent[neighbor] = node
-                    heappush(frontier, (candidate_cost + heuristics[neighbor], neighbor, candidate_cost))
+                    heappush(frontier, (self.priority(candidate_cost, heuristics[neighbor]), neighbor, candidate_cost))
 
         remaining = sorted(
             (node for node in costs if costs[node] < expanded_at.get(node, inf)),
-            key=lambda node: (costs[node] + heuristics[node], node),
+            key=lambda node: (self.priority(costs[node], heuristics[node]), node),
         )
         scores = [dict(x=x, y=y, g=costs[(x, y)], h=heuristics[(x, y)],
-                       f=costs[(x, y)] + heuristics[(x, y)]) for x, y in sorted(costs)]
+                       f=self.priority(costs[(x, y)], heuristics[(x, y)])) for x, y in sorted(costs)]
         return PlanningResult(path, SearchTrace(expanded, remaining, path, scores))
