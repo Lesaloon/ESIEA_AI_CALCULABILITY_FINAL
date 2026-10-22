@@ -13,9 +13,9 @@ On choisit de ne pas pondérer car les deux métriques sont d'importance égale,
 Grille fixe avec un obstacle et des poids sur un des chemins (voir fichier grille_fixe.png)
 
 On commence par implémenter un algorithme qui commence par une recherche du plafond au delà duquel on n'a plus d'amélioration possible, à l'aide de la formule :
-plafond = poids maximum × (nombre de cases franchissables − 1), ce qui nous permet de limiter l'espace de recherche. Puis on applique un gridsearch sur l'intervalle [1 - plafond] de manière à obtenir une centaine de scores. Enfin on appllique un hill climbing sur les 10 scores les plus bas de façon à chercher des minimums locaux autour de ces points bas. On conserve le score le plus bas obtenu parmis ces scoreslocaux. (voir fichier resultat_recherche_1.png)
+plafond = poids maximum × (nombre de cases franchissables − 1), ce qui nous permet de limiter l'espace de recherche. Puis on applique un gridsearch sur l'intervalle [1 - plafond] de manière à obtenir une centaine de scores. Enfin on appllique un hill climbing sur les 10 scores les plus bas de façon à chercher des minimums locaux autour de ces points bas. On conserve le score le plus bas obtenu parmis ces scores locaux. (voir fichier resultat_recherche_1.png)
 
-Lors de nos tests on obtient le meilleur score pour w = 171. Cependant on constate des fluctuations importantes que l'on peut expliquer par le bruit lié au calcul de la durée.
+Lors de notre premier test on obtient le meilleur score pour w = 171. Cependant on constate des fluctuations importantes entre les runs, que l'on peutpeut-être expliquer par le bruit lié au calcul de la durée.
 
 - [x] Prendre la solution trouvee et la tester sur une configuration variable. Qu'est-ce que ca donne? Comment les resultats variant? Pourquoi?
 

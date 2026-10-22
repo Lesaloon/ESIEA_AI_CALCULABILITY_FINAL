@@ -7,16 +7,17 @@ from agent.algorithms.grid_search import _path_cost, _score
 from agent.algorithms.weighted_astar import WeightedAStar
 
 
-def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100):
+def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, score=None):
     """Walk from w by `step` until the current value is a local minimum.
 
     Neighbors are w - step and w + step. The neighbor below 1 is ignored.
     Each candidate uses the same cost/duration score as the grid search.
     The walk moves to the best neighbor when that score is strictly better,
     and stops when neither neighbor improves it. `limit` is the maximum
-    number of moves.
+    number of moves. `score` replaces the default formula when set.
     """
     w, step, limit = _parameters(w, step, limit)
+    score = _score if score is None else score
     trials_by_index = {}
 
     def evaluate(index):
@@ -47,11 +48,11 @@ def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100):
         best_cost = min(trial['cost'] for trial in group)
         best_duration = min(trial['duration'] for trial in group)
 
-        def score(index):
-            return _score(trials_by_index[index], best_cost, best_duration)
+        def ranked(index):
+            return score(trials_by_index[index], best_cost, best_duration)
 
-        chosen = min(neighbors, key=lambda index: (score(index), trials_by_index[index]['w']))
-        if score(chosen) < score(current):
+        chosen = min(neighbors, key=lambda index: (ranked(index), trials_by_index[index]['w']))
+        if ranked(chosen) < ranked(current):
             current = chosen
         else:
             break
@@ -60,7 +61,7 @@ def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100):
     best_cost = min(trial['cost'] for trial in trials)
     best_duration = min(trial['duration'] for trial in trials)
     for trial in trials:
-        trial['score'] = _score(trial, best_cost, best_duration)
+        trial['score'] = score(trial, best_cost, best_duration)
     return dict(best=trials_by_index[current], trials=trials)
 
 

@@ -140,6 +140,10 @@ export class SimulationStore implements OnDestroy {
     return this._weightSearch<MainAlgoReport>('/api/agent/main-algo-1', body);
   }
 
+  async mainAlgo2(body: MainAlgoRequest): Promise<MainAlgoReport | null> {
+    return this._weightSearch<MainAlgoReport>('/api/agent/main-algo-2', body);
+  }
+
   private async _weightSearch<T>(url: string, body: object): Promise<T | null> {
     let report: T | null = null;
     await this.command(async () => {

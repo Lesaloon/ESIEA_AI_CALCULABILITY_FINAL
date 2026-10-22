@@ -18,7 +18,7 @@ export class AgentPanel {
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
   readonly weight = signal(1);
-  readonly searchMode = signal<'grid' | 'random' | 'main'>('grid');
+  readonly searchMode = signal<'grid' | 'random' | 'main' | 'main2'>('grid');
   readonly searchLow = signal(1);
   readonly searchHigh = signal(10);
   readonly searchStep = signal(1);
@@ -28,6 +28,7 @@ export class AgentPanel {
   readonly randomCount = signal(10);
   readonly randomReport = signal<GridSearchReport | null>(null);
   readonly mainReport = signal<MainAlgoReport | null>(null);
+  readonly mainReport2 = signal<MainAlgoReport | null>(null);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -72,6 +73,7 @@ export class AgentPanel {
   });
   readonly selectedAlgorithm = computed(() => this.sim.algorithms().find(a => a.id === this.algorithm()));
   readonly scoreChart = computed(() => this.buildScoreChart(this.mainReport()));
+  readonly scoreChart2 = computed(() => this.buildScoreChart(this.mainReport2()));
 
   constructor() {
     let runId: string | undefined;
@@ -120,6 +122,13 @@ export class AgentPanel {
     if (!target) return;
     const report = await this.sim.mainAlgo(target);
     if (report) this.mainReport.set(report);
+  }
+
+  async runMainAlgo2() {
+    const target = this.searchTarget();
+    if (!target) return;
+    const report = await this.sim.mainAlgo2(target);
+    if (report) this.mainReport2.set(report);
   }
 
   private buildScoreChart(report: MainAlgoReport | null) {

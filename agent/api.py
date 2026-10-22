@@ -7,8 +7,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from math import inf, isfinite
 
-from agent.algorithms.grid_search import _score, graph_from_weights, grid_search
+from agent.algorithms.grid_search import _score, graph_from_weights, grid_search, weighted_score
 from agent.algorithms.main_algo_1 import main_algo_1
+from agent.algorithms.main_algo_2 import main_algo_2
 from agent.algorithms.random_search import random_search
 from agent.environment_client import EnvironmentClient
 from agent.registry import ALGORITHMS
@@ -151,12 +152,21 @@ async def draw_weights(body: RandomSearchConfiguration):
 
 @app.post('/main-algo-1')
 async def run_main_algo(body: MainAlgoConfiguration):
+    return _publish_main(body, main_algo_1, _score)
+
+
+@app.post('/main-algo-2')
+async def run_main_algo_2(body: MainAlgoConfiguration):
+    return _publish_main(body, main_algo_2, weighted_score)
+
+
+def _publish_main(body, algorithm, score):
     if body.heuristic not in HEURISTICS:
         raise HTTPException(422, 'Unknown heuristic')
     try:
         _require_walkable(body.weights, body.start, 'Start')
         _require_walkable(body.weights, body.goal, 'Goal')
-        report = main_algo_1(body.weights, (body.start.x, body.start.y), (body.goal.x, body.goal.y), body.heuristic)
+        report = algorithm(body.weights, (body.start.x, body.start.y), (body.goal.x, body.goal.y), body.heuristic)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     measured = [_measured(trial, 'grid') for trial in report['grid']['trials']]
@@ -165,7 +175,7 @@ async def run_main_algo(body: MainAlgoConfiguration):
     best_cost = min(trial['cost'] for trial in measured)
     best_duration = min(trial['duration'] for trial in measured)
     for trial in measured:
-        trial['score'] = _score(trial, best_cost, best_duration)
+        trial['score'] = score(trial, best_cost, best_duration)
     best = min(measured, key=lambda trial: (trial['score'], trial['w']))
     return dict(ceiling=report['ceiling'], best=_public_trial(best), trials=[_public_trial(trial) for trial in measured])
 
