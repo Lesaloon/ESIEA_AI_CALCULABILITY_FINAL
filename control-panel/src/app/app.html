@@ -14,6 +14,10 @@
       [attr.aria-selected]="activeTab() === 'agent'"
       [attr.tabindex]="activeTab() === 'agent' ? 0 : -1"
       (click)="activeTab.set('agent')">Agent</button>
+    <button id="tuning-tab" type="button" role="tab" aria-controls="tuning-panel"
+      [attr.aria-selected]="activeTab() === 'tuning'"
+      [attr.tabindex]="activeTab() === 'tuning' ? 0 : -1"
+      (click)="activeTab.set('tuning')">Optimization</button>
   </div>
 
   <div id="environment-panel" role="tabpanel" aria-labelledby="environment-tab"
@@ -23,5 +27,9 @@
   <div id="agent-panel" role="tabpanel" aria-labelledby="agent-tab"
     tabindex="0" [hidden]="activeTab() !== 'agent'">
     <app-agent-panel />
+  </div>
+  <div id="tuning-panel" role="tabpanel" aria-labelledby="tuning-tab"
+    tabindex="0" [hidden]="activeTab() !== 'tuning'">
+    <app-tuning-panel />
   </div>
 </main>

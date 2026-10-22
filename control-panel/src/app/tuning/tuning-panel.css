@@ -1,0 +1,35 @@
+:host { display: block; }
+section { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h2 { font-size: 18px; font-weight: 600; }
+.eyebrow { color: var(--muted-foreground); font: 11px ui-monospace, monospace; margin-bottom: 5px; }
+.availability { padding: 5px 10px; background: var(--secondary); color: var(--foreground); border-radius: 4px; font: 12px ui-monospace, monospace; }
+.intro, .help { color: var(--muted-foreground); font-size: 13px; line-height: 1.6; }
+.intro { margin: 12px 0 20px; }
+.help { margin-top: 10px; }
+.configuration { display: flex; flex-wrap: wrap; gap: 12px; border: 0; padding: 0; }
+.configuration label { display: grid; gap: 6px; font-size: 12px; }
+select, .configuration input { border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: white; color: var(--foreground); font-size: 13px; }
+.configuration input { width: 110px; }
+select:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.error { color: var(--destructive); font-size: 13px; margin: 12px 0; }
+.baseline { border-top: 1px solid var(--border); padding-top: 18px; font-size: 13px; }
+.table-scroll { overflow-x: auto; margin-top: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 7px 8px; border-bottom: 1px solid #e4ebf3; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted-foreground); font-weight: 600; }
+td { font-family: ui-monospace, monospace; }
+td:first-child { font-family: var(--font-sans); }
+tr.best td { background: #f1f8f8; font-weight: 600; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+figure { margin: 24px 0 0; }
+figcaption { color: var(--muted-foreground); font-size: 12px; margin-bottom: 8px; }
+svg { width: 100%; height: auto; display: block; }
+.grid { stroke: #e4ebf3; }
+.axis { stroke: var(--border); }
+.tick { fill: var(--muted-foreground); font: 10px ui-monospace, monospace; }
+.curve { fill: none; stroke: var(--foreground); stroke-width: 1.5; }
+.baseline-line { stroke: var(--muted-foreground); stroke-dasharray: 4 4; }
+circle { stroke: white; stroke-width: 1.5; }

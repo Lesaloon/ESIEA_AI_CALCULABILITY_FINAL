@@ -129,7 +129,8 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
 
     async def test_algorithm_selection_and_invalid_configuration(self):
         algorithms = (await self.agent.get('/algorithms')).json()
-        self.assertEqual({item['id'] for item in algorithms}, {'dijkstra', 'astar'})
+        self.assertEqual({item['id'] for item in algorithms},
+                         {'bfs', 'dfs', 'greedy', 'dijkstra', 'astar', 'weighted_astar'})
         for body in ({'algorithm': 'explorer'}, {'heuristic': 'unknown'}):
             response = await self.agent.post('/runs', json=body)
             self.assertEqual(response.status_code, 422)

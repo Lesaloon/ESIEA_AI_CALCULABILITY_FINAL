@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { AgentPanel } from './agent/agent-panel';
 import { EnvironmentPanel } from './environment/environment-panel';
+import { TuningPanel } from './tuning/tuning-panel';
 
-type WorkspaceTab = 'environment' | 'agent';
+const TABS = ['environment', 'agent', 'tuning'] as const;
+type WorkspaceTab = typeof TABS[number];
 
 @Component({
   selector: 'app-root',
-  imports: [EnvironmentPanel, AgentPanel],
+  imports: [EnvironmentPanel, AgentPanel, TuningPanel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -16,16 +18,19 @@ export class App {
 
   navigateTabs(event: KeyboardEvent) {
     let tab: WorkspaceTab;
+    const index = TABS.indexOf(this.activeTab());
     switch (event.key) {
       case 'ArrowLeft':
+        tab = TABS[(index + TABS.length - 1) % TABS.length];
+        break;
       case 'ArrowRight':
-        tab = this.activeTab() === 'environment' ? 'agent' : 'environment';
+        tab = TABS[(index + 1) % TABS.length];
         break;
       case 'Home':
-        tab = 'environment';
+        tab = TABS[0];
         break;
       case 'End':
-        tab = 'agent';
+        tab = TABS[TABS.length - 1];
         break;
       default:
         return;

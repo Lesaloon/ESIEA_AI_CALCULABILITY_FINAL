@@ -25,7 +25,11 @@
     <label>Maximum turns<input #limitInput type="number" min="1" max="10000" step="1" [value]="maxTurns()" (input)="maxTurns.set(limitInput.valueAsNumber)"></label>
   </fieldset>
   <p class="help">{{ selectedAlgorithm()?.description }} L∞ is an admissible estimate for eight-way movement. Settings apply when creating or resetting a run.</p>
-  @if (algorithm() === 'astar' && heuristic() !== 'zero' && heuristic() !== 'linf') {
+  @if (algorithm() === 'weighted_astar') {
+    <app-weight-picker [grid]="env.grid()" [start]="sim.scenario().start" [goal]="sim.scenario().goal"
+      [heuristic]="heuristic()" [disabled]="sim.busy() || running() || env.busy()" [(weight)]="weight" />
+  }
+  @if ((algorithm() === 'astar' || algorithm() === 'weighted_astar') && heuristic() !== 'zero' && heuristic() !== 'linf') {
     <p class="help">This heuristic can overestimate path cost with eight-way movement; A* optimality is not guaranteed.</p>
   }
   <div class="actions">

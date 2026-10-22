@@ -18,7 +18,7 @@ export interface TurnEvent {
   reason: string; explanation: string; trace: Trace; knowledge: KnownCell[];
 }
 export interface RunConfig {
-  algorithm: string; heuristic: string; interval_ms: number; max_turns: number;
+  algorithm: string; heuristic: string; weight: number; interval_ms: number; max_turns: number;
 }
 export interface Algorithm { id: string; label: string; description: string; }
 export interface AgentState {

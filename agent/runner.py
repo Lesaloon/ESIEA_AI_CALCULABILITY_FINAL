@@ -52,7 +52,7 @@ class Runner:
         async with self.lock:
             if self.continuous:
                 raise RunnerError('Pause before resetting the run')
-            agent_config = AgentConfig(config['heuristic'], config['algorithm'])
+            agent_config = AgentConfig(config['heuristic'], config['algorithm'], config.get('weight', 2.0))
             try:
                 policy = Agent()
                 policy.reset(agent_config)

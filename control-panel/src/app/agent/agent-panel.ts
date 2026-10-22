@@ -4,10 +4,11 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { EnvironmentStore } from '../environment/environment-store';
 import { SimulationStore } from '../simulation-store';
 import { SimulationGrid } from '../simulation-grid';
+import { WeightPicker } from './weight-picker';
 
 @Component({
   selector: 'app-agent-panel',
-  imports: [HlmButton, SimulationGrid, DecimalPipe, JsonPipe],
+  imports: [HlmButton, SimulationGrid, WeightPicker, DecimalPipe, JsonPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './agent-panel.html',
   styleUrl: './agent-panel.css',
@@ -17,6 +18,7 @@ export class AgentPanel {
   readonly env = inject(EnvironmentStore);
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
+  readonly weight = signal(2);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -49,7 +51,8 @@ export class AgentPanel {
   readonly cost = computed(() => this.replay() === null ? this.sim.state()?.run?.cumulative_cost ?? 0
     : this.displayedEvent()?.cumulative_cost ?? 0);
   readonly configValid = computed(() => Number.isInteger(this.interval()) && this.interval() >= 50 && this.interval() <= 5000
-    && Number.isInteger(this.maxTurns()) && this.maxTurns() >= 1 && this.maxTurns() <= 10000);
+    && Number.isInteger(this.maxTurns()) && this.maxTurns() >= 1 && this.maxTurns() <= 10000
+    && (this.algorithm() !== 'weighted_astar' || (this.weight() >= 1 && this.weight() <= 100)));
   readonly selectedAlgorithm = computed(() => this.sim.algorithms().find(a => a.id === this.algorithm()));
 
   constructor() {
@@ -62,6 +65,7 @@ export class AgentPanel {
         if (state?.config) {
           this.algorithm.set(state.config.algorithm);
           this.heuristic.set(state.config.heuristic);
+          if (state.config.weight) this.weight.set(state.config.weight);
           this.interval.set(state.config.interval_ms); this.maxTurns.set(state.config.max_turns);
         }
       }
@@ -70,7 +74,7 @@ export class AgentPanel {
 
   async create() {
     this.replay.set(null);
-    await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(),
+    await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(), weight: this.weight(),
       interval_ms: this.interval(), max_turns: this.maxTurns() });
   }
 }

@@ -29,6 +29,7 @@ class Observation:
 class AgentConfig:
     heuristic: str = 'l1'
     algorithm: str = 'astar'
+    weight: float = 2.0  # w of weighted A*; ignored by the other algorithms
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,8 @@ class SearchTrace:
     frontier: list[Position] = field(default_factory=list)
     candidate_path: list[Position] = field(default_factory=list)
     scores: list[dict] = field(default_factory=list)
+    # Largest frontier (heap, queue or stack) size reached: the search's memory use.
+    heap_peak: int = 0
 
 
 @dataclass

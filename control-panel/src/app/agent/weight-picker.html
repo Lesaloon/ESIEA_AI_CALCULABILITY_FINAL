@@ -1,0 +1,43 @@
+<div class="picker">
+  <div class="controls">
+    <label>w<input #weightInput type="number" min="1" max="100" step="0.1" [value]="weight()" [disabled]="disabled()"
+      (input)="weight.set(weightInput.valueAsNumber)"></label>
+    <label>w max<input #maxInput type="number" min="2" max="100" step="1" [value]="wMax()" [disabled]="disabled() || busy()"
+      (input)="wMax.set(maxInput.valueAsNumber)"></label>
+    <button hlmBtn variant="outline" [disabled]="disabled() || busy() || !ready()" (click)="search()">
+      {{ busy() ? 'Searching…' : 'Grid search on this map' }}</button>
+  </div>
+  <p class="help">Runs weighted A* on the current map for every integer w from 1 to w max and scores each with
+    F = time/ref + cost/optimal + heap/ref (reference: classic A*, w = 1). Click a point to use that w.</p>
+  @if (!start() || !goal()) { <p class="help">Place a start and goal in the Environment tab first.</p> }
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+
+  @if (chart(); as c) {
+    <svg [attr.viewBox]="'0 0 ' + width + ' ' + height" role="group" aria-label="Grid search of w: click a point to select it">
+      @for (t of c.yTicks; track $index) {
+        <line class="grid" [attr.x1]="c.left" [attr.x2]="c.right" [attr.y1]="t.y" [attr.y2]="t.y" />
+        <text class="tick" [attr.x]="c.left - 6" [attr.y]="t.y + 4" text-anchor="end">{{ t.f | number:'1.2-2' }}</text>
+      }
+      @for (t of c.xTicks; track $index) {
+        <text class="tick" [attr.x]="t.x" [attr.y]="c.bottom + 18" text-anchor="middle">{{ t.w }}</text>
+      }
+      <line class="axis" [attr.x1]="c.left" [attr.x2]="c.right" [attr.y1]="c.bottom" [attr.y2]="c.bottom" />
+      <line class="baseline" [attr.x1]="c.left" [attr.x2]="c.right" [attr.y1]="c.baselineY" [attr.y2]="c.baselineY" />
+      <line class="selection" [attr.x1]="c.selectedX" [attr.x2]="c.selectedX" y1="12" [attr.y2]="c.bottom" />
+      <polyline class="curve" [attr.points]="c.line" />
+      @for (p of c.points; track p.w) {
+        <circle tabindex="0" role="button" [attr.cx]="p.cx" [attr.cy]="p.cy" [attr.r]="p.best ? 6 : 4"
+          [class.best]="p.best" [class.chosen]="p.w === weight()"
+          [attr.aria-label]="'Use w = ' + p.w + ', F = ' + (p.f | number:'1.3-3')"
+          (click)="weight.set(p.w)" (keydown.enter)="weight.set(p.w)" (keydown.space)="weight.set(p.w)">
+          <title>w = {{ p.w }} · F = {{ p.f | number:'1.3-3' }} · cost {{ p.cost_ratio | number:'1.3-3' }}× optimal</title>
+        </circle>
+      }
+    </svg>
+    <p class="summary">
+      Best: <strong>w = {{ result()!.best.w }}</strong> (F = {{ result()!.best.f | number:'1.3-3' }}) ·
+      baseline F = {{ result()!.baseline.f | number:'1.3-3' }}
+      @if (selected(); as s) { · selected w = {{ s.w }}: F = {{ s.f | number:'1.3-3' }}, cost {{ s.cost_ratio | number:'1.3-3' }}× optimal }
+    </p>
+  }
+</div>

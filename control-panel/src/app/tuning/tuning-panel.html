@@ -1,0 +1,82 @@
+<section aria-labelledby="tuning-title">
+  <header class="heading">
+    <div><p class="eyebrow">Metaheuristic laboratory</p><h2 id="tuning-title">Weighted A* tuning</h2></div>
+    <span class="availability" role="status">{{ busy() ? 'Running…' : result() ? 'Done' : 'Ready' }}</span>
+  </header>
+  <p class="intro">Weighted A* ranks cells by f = g + w·h. Each method below searches for the w that minimizes
+    F = α·time/ref + β·cost/optimal + γ·heap/ref, averaged over a U trap and three random weighted maps.
+    The baseline is classic A* (w = 1), whose F is about α + β + γ.</p>
+
+  <fieldset class="configuration" [disabled]="busy()">
+    <legend class="sr-only">Tuning configuration</legend>
+    <label>Map size<input #sizeInput type="number" min="10" max="40" step="1" [value]="size()" (input)="size.set(number(sizeInput))"></label>
+    <label>Connectivity
+      <select #connectivityInput [value]="connectivity()" (change)="connectivity.set(connectivityInput.value === '4' ? 4 : 8)">
+        <option value="4">4 neighbors</option><option value="8">8 neighbors</option>
+      </select>
+    </label>
+    <label>Heuristic
+      <select #heuristicInput [value]="heuristic()" (change)="heuristic.set(heuristicInput.value)">
+        <option value="l1">L1 · Manhattan</option><option value="l2">L2 · Euclidean</option><option value="linf">L∞ · Chebyshev</option>
+      </select>
+    </label>
+    <label>w max<input #maxInput type="number" min="2" max="100" step="1" [value]="wMax()" (input)="wMax.set(number(maxInput))"></label>
+    <label>Local start w<input #startInput type="number" min="1" step="0.2" [value]="start()" (input)="start.set(number(startInput))"></label>
+    <label>α · time<input #alphaInput type="number" min="0" max="10" step="0.5" [value]="alpha()" (input)="alpha.set(number(alphaInput))"></label>
+    <label>β · cost<input #betaInput type="number" min="0" max="10" step="0.5" [value]="beta()" (input)="beta.set(number(betaInput))"></label>
+    <label>γ · heap<input #gammaInput type="number" min="0" max="10" step="0.5" [value]="gamma()" (input)="gamma.set(number(gammaInput))"></label>
+    <label>Max cost / optimal<input #ratioInput type="number" min="1" step="0.05" placeholder="none"
+      [value]="maxCostRatio() ?? ''" (input)="maxCostRatio.set(ratioInput.value === '' ? null : number(ratioInput))"></label>
+    <label>Seed<input #seedInput type="number" min="0" max="1000" step="1" [value]="seed()" (input)="seed.set(number(seedInput))"></label>
+  </fieldset>
+  <p class="help">Size 10–40, w max 2–100, start between 1 and w max. Leave the cost limit empty for no constraint;
+    a run violating it is penalized in F. L∞ is the admissible heuristic with eight neighbors.</p>
+  <div class="actions">
+    <button hlmBtn [disabled]="busy() || !valid()" (click)="run()">{{ busy() ? 'Optimizing…' : 'Run optimization' }}</button>
+  </div>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+
+  @if (result(); as r) {
+    <div class="baseline">Baseline A* (w = 1): <strong>F = {{ r.baseline.f | number:'1.3-3' }}</strong></div>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Best w</th><th>F</th><th>Time / ref</th><th>Cost / optimal</th><th>Heap / ref</th><th>Evaluations</th></tr></thead>
+        <tbody>
+          @for (m of r.methods; track m.id) {
+            <tr [class.best]="m.best.f === bestF()">
+              <td><i class="swatch" [style.background]="color(m.id)"></i>{{ m.label }}</td>
+              <td>{{ m.best.w | number:'1.2-2' }}</td>
+              <td>{{ m.best.f | number:'1.3-3' }}</td>
+              <td>{{ m.best.time_ratio | number:'1.2-2' }}</td>
+              <td>{{ m.best.cost_ratio | number:'1.3-3' }}</td>
+              <td>{{ m.best.heap_ratio | number:'1.2-2' }}</td>
+              <td>{{ m.evaluations }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (chart(); as c) {
+      <figure>
+        <figcaption>F(w) for integer w, with each method's best point. Lower is better; the dashed line is the baseline.</figcaption>
+        <svg [attr.viewBox]="'0 0 ' + width + ' ' + height" role="img" aria-label="F as a function of w">
+          @for (t of c.yTicks; track $index) {
+            <line class="grid" [attr.x1]="c.left" [attr.x2]="c.right" [attr.y1]="t.y" [attr.y2]="t.y" />
+            <text class="tick" [attr.x]="c.left - 6" [attr.y]="t.y + 4" text-anchor="end">{{ t.f | number:'1.2-2' }}</text>
+          }
+          @for (t of c.xTicks; track $index) {
+            <text class="tick" [attr.x]="t.x" [attr.y]="c.bottom + 18" text-anchor="middle">{{ t.w }}</text>
+          }
+          <line class="axis" [attr.x1]="c.left" [attr.x2]="c.right" [attr.y1]="c.bottom" [attr.y2]="c.bottom" />
+          <line class="baseline-line" [attr.x1]="c.left" [attr.x2]="c.right" [attr.y1]="c.baselineY" [attr.y2]="c.baselineY" />
+          <polyline class="curve" [attr.points]="c.line" />
+          @for (p of c.points; track p.id) {
+            <circle [attr.cx]="p.x" [attr.cy]="p.y" r="5" [attr.fill]="p.color"><title>{{ p.label }}</title></circle>
+          }
+        </svg>
+      </figure>
+    }
+  }
+</section>
