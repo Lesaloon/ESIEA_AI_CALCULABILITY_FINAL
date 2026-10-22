@@ -36,6 +36,7 @@
       <div class="search-tabs" role="tablist" aria-label="Weight search method">
         <button type="button" role="tab" id="grid-search-tab" [attr.aria-selected]="searchMode() === 'grid'" (click)="searchMode.set('grid')">Grid search</button>
         <button type="button" role="tab" id="random-search-tab" [attr.aria-selected]="searchMode() === 'random'" (click)="searchMode.set('random')">Random search</button>
+        <button type="button" role="tab" id="main-algo-tab" [attr.aria-selected]="searchMode() === 'main'" (click)="searchMode.set('main')">Recherche 1</button>
       </div>
       @if (searchMode() === 'grid') {
         <h3 id="grid-search-title">Grid search on w</h3>
@@ -51,7 +52,7 @@
             (click)="compareWeights()">Compare</button>
         </div>
         @if (report(); as report) { <ng-container *ngTemplateOutlet="searchResults; context: { $implicit: report }" /> }
-      } @else {
+      } @else if (searchMode() === 'random') {
         <h3 id="random-search-title">Random search on w</h3>
         <p class="help">Draw random values of w between the bounds. There is no step. The search does not move the agent. Click a row to keep that w for the next run.</p>
         <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
@@ -65,6 +66,52 @@
             (click)="drawWeights()">Compare</button>
         </div>
         @if (randomReport(); as report) { <ng-container *ngTemplateOutlet="searchResults; context: { $implicit: report }" /> }
+      } @else {
+        <h3 id="main-algo-title">Recherche 1</h3>
+        <p class="help">Search w from 1 to the map ceiling: 100 grid values, then a hill climb from each of the 10 best scores. The search does not move the agent. Lower scores are better. Click a point to keep that w for the next run.</p>
+        <div class="actions">
+          <button hlmBtn id="main-algo-compare" [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal"
+            (click)="runMainAlgo()">Compare</button>
+        </div>
+        @if (mainReport(); as report) {
+          <p class="help">Map ceiling: {{ report.ceiling | number:'1.0-2' }}. {{ report.trials.length }} scores measured.</p>
+          @if (scoreChart(); as chart) {
+            <figure class="score-chart">
+              <figcaption class="sr-only">Score against w. Best score at w = {{ report.best.w | number:'1.0-3' }}.</figcaption>
+              <svg [attr.viewBox]="'0 0 ' + chart.width + ' ' + chart.height" role="img" [attr.aria-label]="'Score against w, best w ' + (report.best.w | number:'1.0-3')">
+                <line class="axis" [attr.x1]="chart.pad.left" [attr.y1]="chart.pad.top" [attr.x2]="chart.pad.left" [attr.y2]="chart.height - chart.pad.bottom" />
+                <line class="axis" [attr.x1]="chart.pad.left" [attr.y1]="chart.height - chart.pad.bottom" [attr.x2]="chart.width - chart.pad.right" [attr.y2]="chart.height - chart.pad.bottom" />
+                <line class="best-line" [attr.x1]="chart.pad.left" [attr.x2]="chart.width - chart.pad.right" [attr.y1]="chart.bestY" [attr.y2]="chart.bestY" />
+                <polyline [attr.points]="chart.line" />
+                @for (point of chart.points; track $index) {
+                  <circle [class.best]="point.best" [attr.cx]="point.cx" [attr.cy]="point.cy" [attr.r]="point.best ? 6 : 3.5" (click)="weight.set(point.w)">
+                    <title>w = {{ point.w | number:'1.0-3' }}, score = {{ point.score | number:'1.0-3' }}</title>
+                  </circle>
+                }
+                <text class="best-label" [attr.x]="chart.label.x" [attr.y]="chart.label.y" [attr.text-anchor]="chart.label.anchor">Best</text>
+                <text [attr.x]="chart.pad.left - 8" [attr.y]="chart.pad.top + 8" text-anchor="end">{{ chart.maxS }}</text>
+                <text [attr.x]="chart.pad.left - 8" [attr.y]="chart.height - chart.pad.bottom + 4" text-anchor="end">{{ chart.minS }}</text>
+                <text [attr.x]="chart.pad.left" [attr.y]="chart.height - 18">{{ chart.minW }}</text>
+                <text [attr.x]="chart.width - chart.pad.right" [attr.y]="chart.height - 18" text-anchor="end">{{ chart.maxW }}</text>
+                <text [attr.x]="chart.width - chart.pad.right" [attr.y]="chart.height - 4" text-anchor="end">w</text>
+              </svg>
+              <p class="chart-legend"><span><i class="measured"></i>Measured score</span><span><i class="best"></i>Best score</span></p>
+            </figure>
+          } @else {
+            <p class="help">No route for these weights.</p>
+          }
+          @if (report.best.cost !== null) {
+            <section class="best-result" aria-label="Best weight">
+              <div class="best-result-heading"><h3>Best result</h3><span>w = {{ report.best.w | number:'1.0-3' }}</span></div>
+              <dl class="metrics">
+                <div><dt>Cost</dt><dd>{{ report.best.cost | number:'1.0-2' }}</dd></div>
+                <div><dt>Nodes</dt><dd>{{ report.best.expansions }}</dd></div>
+                <div><dt>Duration</dt><dd>{{ report.best.duration * 1000 | number:'1.0-3' }} ms</dd></div>
+                <div><dt>Score</dt><dd>{{ report.best.score | number:'1.0-3' }}</dd></div>
+              </dl>
+            </section>
+          }
+        }
       }
       <ng-template #searchResults let-report>
         <div class="history-scroll">

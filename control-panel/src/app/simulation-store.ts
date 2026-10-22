@@ -32,6 +32,10 @@ export interface RandomSearchRequest {
   heuristic: string; low: number; high: number; count: number;
   start: Position; goal: Position; weights: (number | null)[][];
 }
+export interface MainAlgoReport { ceiling: number; best: GridSearchTrial; trials: GridSearchTrial[]; }
+export interface MainAlgoRequest {
+  heuristic: string; start: Position; goal: Position; weights: (number | null)[][];
+}
 export interface Algorithm { id: string; label: string; description: string; }
 export interface AgentState {
   status: string; error: string; config: RunConfig | null; knowledge: KnownCell[]; history_count: number;
@@ -124,17 +128,21 @@ export class SimulationStore implements OnDestroy {
   }
 
   async gridSearch(body: GridSearchRequest): Promise<GridSearchReport | null> {
-    return this._weightSearch('/api/agent/grid-search', body);
+    return this._weightSearch<GridSearchReport>('/api/agent/grid-search', body);
   }
 
   async randomSearch(body: RandomSearchRequest): Promise<GridSearchReport | null> {
-    return this._weightSearch('/api/agent/random-search', body);
+    return this._weightSearch<GridSearchReport>('/api/agent/random-search', body);
   }
 
-  private async _weightSearch(url: string, body: GridSearchRequest | RandomSearchRequest): Promise<GridSearchReport | null> {
-    let report: GridSearchReport | null = null;
+  async mainAlgo(body: MainAlgoRequest): Promise<MainAlgoReport | null> {
+    return this._weightSearch<MainAlgoReport>('/api/agent/main-algo-1', body);
+  }
+
+  private async _weightSearch<T>(url: string, body: object): Promise<T | null> {
+    let report: T | null = null;
     await this.command(async () => {
-      report = await firstValueFrom(this.http.post<GridSearchReport>(url, body).pipe(timeout(20000)));
+      report = await firstValueFrom(this.http.post<T>(url, body).pipe(timeout(20000)));
     });
     return report;
   }

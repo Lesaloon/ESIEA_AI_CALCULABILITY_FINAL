@@ -19,7 +19,7 @@ select:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
 .weight-search { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .weight-search .actions { margin: 12px 0; }
-.search-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.search-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
 .search-tabs button { padding: 8px 12px; border-bottom: 3px solid transparent; color: var(--muted-foreground); font-size: 13px; font-weight: 600; }
 .search-tabs button:hover { background: var(--secondary); }
 .search-tabs button[aria-selected="true"] { border-bottom-color: var(--primary); color: var(--primary); }
@@ -27,6 +27,19 @@ select:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .weight-search tbody tr.best { background: #d7efe8; font-weight: 600; }
 .weight-search tbody tr.best td:first-child { box-shadow: inset 3px 0 0 #056066; }
 .best-mark { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #056066; color: white; font: 10px ui-monospace, monospace; font-weight: 600; vertical-align: 1px; }
+.score-chart { margin: 8px 0 0; }
+.score-chart svg { width: 100%; height: auto; display: block; background: white; }
+.score-chart .axis { stroke: #c5d0dd; }
+.score-chart .best-line { stroke: #8bbec1; stroke-dasharray: 4 4; }
+.score-chart polyline { fill: none; stroke: #9eb6d6; stroke-width: 1.5; }
+.score-chart circle { fill: #285ea8; cursor: pointer; }
+.score-chart circle.best { fill: #056066; stroke: white; stroke-width: 2; }
+.score-chart text { fill: #536379; font: 11px ui-monospace, monospace; }
+.score-chart .best-label { fill: #056066; font-weight: 700; }
+.chart-legend { display: flex; gap: 16px; margin: 8px 0 0; color: var(--muted-foreground); font-size: 12px; }
+.chart-legend i { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; vertical-align: -1px; }
+.chart-legend .measured { background: #285ea8; }
+.chart-legend .best { background: #056066; }
 .best-result { border: 1px solid #8bbec1; background: #f1f8f8; border-radius: 6px; padding: 16px; margin-top: 16px; }
 .best-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .best-result-heading span { font: 12px ui-monospace, monospace; color: #056066; }

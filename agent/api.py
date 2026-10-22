@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from math import inf, isfinite
 
-from agent.algorithms.grid_search import graph_from_weights, grid_search
+from agent.algorithms.grid_search import _score, graph_from_weights, grid_search
+from agent.algorithms.main_algo_1 import main_algo_1
 from agent.algorithms.random_search import random_search
 from agent.environment_client import EnvironmentClient
 from agent.registry import ALGORITHMS
@@ -44,6 +45,13 @@ class RandomSearchConfiguration(BaseModel):
     low: float = Field(default=1, ge=1)
     high: float = Field(default=50, ge=1)
     count: int = Field(default=10, ge=1, le=200, strict=True)
+    start: GridPoint
+    goal: GridPoint
+    weights: list[list[float | None]] = Field(min_length=1, max_length=40)
+
+
+class MainAlgoConfiguration(BaseModel):
+    heuristic: str = 'l1'
     start: GridPoint
     goal: GridPoint
     weights: list[list[float | None]] = Field(min_length=1, max_length=40)
@@ -136,6 +144,31 @@ async def search_weights(body: GridSearchConfiguration):
 async def draw_weights(body: RandomSearchConfiguration):
     return _publish_search(body, lambda graph, start, goal: random_search(
         graph, start, goal, body.heuristic, body.low, body.high, body.count))
+
+
+@app.post('/main-algo-1')
+async def run_main_algo(body: MainAlgoConfiguration):
+    if body.heuristic not in HEURISTICS:
+        raise HTTPException(422, 'Unknown heuristic')
+    try:
+        _require_walkable(body.weights, body.start, 'Start')
+        _require_walkable(body.weights, body.goal, 'Goal')
+        report = main_algo_1(body.weights, (body.start.x, body.start.y), (body.goal.x, body.goal.y), body.heuristic)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    measured = [_measured(trial) for trial in report['grid']['trials']]
+    for climb in report['climbs']:
+        measured.extend(_measured(trial) for trial in climb['trials'])
+    best_cost = min(trial['cost'] for trial in measured)
+    best_duration = min(trial['duration'] for trial in measured)
+    for trial in measured:
+        trial['score'] = _score(trial, best_cost, best_duration)
+    best = min(measured, key=lambda trial: (trial['score'], trial['w']))
+    return dict(ceiling=report['ceiling'], best=_public_trial(best), trials=[_public_trial(trial) for trial in measured])
+
+
+def _measured(trial):
+    return dict(w=trial['w'], cost=trial['cost'], duration=trial['duration'], expansions=trial['expansions'])
 
 
 def _publish_search(body, search):

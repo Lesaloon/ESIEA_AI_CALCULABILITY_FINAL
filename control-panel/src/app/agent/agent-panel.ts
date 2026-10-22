@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { DecimalPipe, JsonPipe, NgTemplateOutlet } from '@angular/common';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { EnvironmentStore } from '../environment/environment-store';
-import { GridSearchReport, SimulationStore } from '../simulation-store';
+import { GridSearchReport, MainAlgoReport, SimulationStore } from '../simulation-store';
 import { SimulationGrid } from '../simulation-grid';
 
 @Component({
@@ -18,7 +18,7 @@ export class AgentPanel {
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
   readonly weight = signal(1);
-  readonly searchMode = signal<'grid' | 'random'>('grid');
+  readonly searchMode = signal<'grid' | 'random' | 'main'>('grid');
   readonly searchLow = signal(1);
   readonly searchHigh = signal(10);
   readonly searchStep = signal(1);
@@ -27,6 +27,7 @@ export class AgentPanel {
   readonly randomHigh = signal(50);
   readonly randomCount = signal(10);
   readonly randomReport = signal<GridSearchReport | null>(null);
+  readonly mainReport = signal<MainAlgoReport | null>(null);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -70,6 +71,7 @@ export class AgentPanel {
     return [low, high].every(Number.isFinite) && Number.isInteger(count) && count >= 1 && count <= 200 && low >= 1 && high >= low;
   });
   readonly selectedAlgorithm = computed(() => this.sim.algorithms().find(a => a.id === this.algorithm()));
+  readonly scoreChart = computed(() => this.buildScoreChart(this.mainReport()));
 
   constructor() {
     let runId: string | undefined;
@@ -111,6 +113,53 @@ export class AgentPanel {
       ...target, low: this.randomLow(), high: this.randomHigh(), count: this.randomCount(),
     });
     if (report) this.randomReport.set(report);
+  }
+
+  async runMainAlgo() {
+    const target = this.searchTarget();
+    if (!target) return;
+    const report = await this.sim.mainAlgo(target);
+    if (report) this.mainReport.set(report);
+  }
+
+  private buildScoreChart(report: MainAlgoReport | null) {
+    if (!report) return null;
+    const scored = report.trials.filter(trial => trial.score !== null);
+    if (!scored.length || report.best.score === null) return null;
+    const width = 640;
+    const height = 300;
+    const pad = { left: 72, right: 28, top: 16, bottom: 48 };
+    const plotW = width - pad.left - pad.right;
+    const plotH = height - pad.top - pad.bottom;
+    const minW = Math.min(...scored.map(trial => trial.w));
+    const maxW = Math.max(...scored.map(trial => trial.w));
+    const minS = Math.min(...scored.map(trial => trial.score as number));
+    const maxS = Math.max(...scored.map(trial => trial.score as number));
+    const xOf = (w: number) => pad.left + (maxW === minW ? plotW / 2 : ((w - minW) / (maxW - minW)) * plotW);
+    const yOf = (score: number) => pad.top + (maxS === minS ? plotH / 2 : (1 - (score - minS) / (maxS - minS)) * plotH);
+    const points = scored.map(trial => ({
+      w: trial.w,
+      score: trial.score as number,
+      cx: xOf(trial.w),
+      cy: yOf(trial.score as number),
+      best: trial.score === report.best.score && trial.w === report.best.w,
+    }));
+    const lowestByW = new Map<number, (typeof points)[number]>();
+    for (const point of [...points].sort((a, b) => b.score - a.score)) lowestByW.set(point.w, point);
+    const line = [...lowestByW.values()].sort((a, b) => a.w - b.w).map(point => `${point.cx},${point.cy}`).join(' ');
+    const marked = points.find(point => point.best) ?? points[0];
+    const anchor = marked.cx > width - 80 ? 'end' : 'start';
+    return {
+      width, height, pad, line, points: [...points.filter(point => !point.best), ...points.filter(point => point.best)],
+      minW: this.formatChart(minW), maxW: this.formatChart(maxW),
+      minS: this.formatChart(minS), maxS: this.formatChart(maxS),
+      bestY: yOf(report.best.score),
+      label: { x: anchor === 'end' ? marked.cx - 12 : marked.cx + 12, y: Math.max(pad.top + 12, marked.cy - 14), anchor },
+    };
+  }
+
+  private formatChart(value: number) {
+    return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
   }
 
   private searchTarget() {
