@@ -208,3 +208,38 @@ gRPC listeners and in-process HTTP clients. They cover the frozen graph,
 directional costs, algorithm selection, heuristic reset, weighted detours, a single cached search,
 stopping at the goal without exploration, start equal to goal, unreachable
 goals, invalid/stale moves, retries, locking, replay and execution controls.
+
+## Weighted A* and parameter optimizers
+
+**Weighted A*** orders the frontier by `f = g + w·h` (`AStar(heuristic, weight)` in
+`agent/algorithms/astar.py`). `w = 1` is classic A*. A larger `w` trusts the heuristic
+more: fewer expanded nodes, less time and memory, but with an admissible heuristic (L∞)
+the route may cost up to `w` times the optimum. Dijkstra ignores `w`.
+
+**Optimizers** (`agent/algorithms/optimizers.py`) search for the best
+`(heuristic, w)` pair before the first move, by running A* on the known map (no physical
+move). Each trial is scored on three criteria, each divided by the same measure for the
+reference search (classic A*, L∞, `w = 1`):
+
+```text
+score = cost_weight * cost/cost_ref + time_weight * time/time_ref + memory_weight * memory/memory_ref
+```
+
+`cost` is the route cost, `time` the best of 3 search durations, `memory` the peak
+allocation of one search (`tracemalloc`). The three importances are editable in the UI;
+set one to 0 to ignore a criterion. Time depends on the machine and is slightly noisy.
+
+| Id | Optimizer | Parameters (besides the three importances) |
+| --- | --- | --- |
+| `grid` | Tries every heuristic × every weight between min and max | `weight_min`, `weight_max`, `weight_step` |
+| `random` | Samples random pairs, keeps the best | `trials`, `weight_max`, `seed` |
+| `hill_climbing` | Starts at the chosen heuristic/weight, moves to the best neighbor (`w ± step`, or another heuristic) until none improves | `weight_max`, `step`, `max_iterations` |
+
+`GET /optimizers` lists them with their parameters; the UI builds its form from that
+list. `POST /runs` accepts `weight`, `optimizer` (`none` by default) and
+`optimizer_params` (defaults filled in, invalid values give `422`). Optimizers only tune
+A*. The first decision's trace carries `tuning`: chosen heuristic/weight, the best trial,
+the reference and every trial. The **Agent** tab shows it under the grid.
+
+To add an optimizer, subclass `Optimizer` (declare `params`, implement `optimize()`
+using the `evaluate(heuristic, weight)` callable) and register it in `agent/registry.py`.

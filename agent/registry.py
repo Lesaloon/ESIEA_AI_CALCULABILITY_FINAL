@@ -1,10 +1,11 @@
-"""Selectable full-map shortest-path algorithms."""
+"""Selectable full-map shortest-path algorithms and parameter optimizers."""
 
 from dataclasses import dataclass
 from typing import Callable
 
 from agent.algorithms.astar import AStar
 from agent.algorithms.dijkstra import Dijkstra
+from agent.algorithms.optimizers import GridSearch, HillClimbing, RandomSearch
 
 
 @dataclass(frozen=True)
@@ -16,5 +17,12 @@ class Algorithm:
 
 ALGORITHMS = {
     'dijkstra': Algorithm('Dijkstra', 'Minimum-cost search using g; heuristic is always zero.', Dijkstra),
-    'astar': Algorithm('A*', 'Weighted search using g + h with the selected heuristic.', AStar),
+    'astar': Algorithm('Weighted A*', 'Search using f = g + w·h; w = 1 is classic A*, w > 1 is faster but may be suboptimal.', AStar),
+}
+
+# Optimizers tune (heuristic, weight) for A*. The UI builds its form from `params`.
+OPTIMIZERS = {
+    'grid': GridSearch,
+    'random': RandomSearch,
+    'hill_climbing': HillClimbing,
 }

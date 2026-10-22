@@ -17,6 +17,9 @@ export class AgentPanel {
   readonly env = inject(EnvironmentStore);
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
+  readonly weight = signal(1);
+  readonly optimizer = signal('none');
+  readonly optimizerParams = signal<Record<string, number>>({});
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -48,9 +51,23 @@ export class AgentPanel {
   });
   readonly cost = computed(() => this.replay() === null ? this.sim.state()?.run?.cumulative_cost ?? 0
     : this.displayedEvent()?.cumulative_cost ?? 0);
-  readonly configValid = computed(() => Number.isInteger(this.interval()) && this.interval() >= 50 && this.interval() <= 5000
-    && Number.isInteger(this.maxTurns()) && this.maxTurns() >= 1 && this.maxTurns() <= 10000);
+  // First invalid setting, or '' when the run can be created.
+  readonly configProblem = computed(() => {
+    const inRange = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
+    if (this.algorithm() === 'astar' && !inRange(this.weight(), 1, 20)) return 'Weight w must be between 1 and 20.';
+    if (this.algorithm() === 'astar') {
+      for (const p of this.selectedOptimizer()?.params ?? []) {
+        if (!inRange(this.paramValue(p.id, p.default), p.min, p.max)) return `${p.label} must be between ${p.min} and ${p.max}.`;
+      }
+    }
+    if (!Number.isInteger(this.interval()) || !inRange(this.interval(), 50, 5000)) return 'Turn interval must be a whole number between 50 and 5000 ms.';
+    if (!Number.isInteger(this.maxTurns()) || !inRange(this.maxTurns(), 1, 10000)) return 'Maximum turns must be a whole number between 1 and 10000.';
+    return '';
+  });
+  readonly configValid = computed(() => !this.configProblem());
   readonly selectedAlgorithm = computed(() => this.sim.algorithms().find(a => a.id === this.algorithm()));
+  readonly selectedOptimizer = computed(() => this.sim.optimizers().find(o => o.id === this.optimizer()) ?? null);
+  readonly tuning = computed(() => this.sim.history()[0]?.trace.tuning ?? null);
 
   constructor() {
     let runId: string | undefined;
@@ -62,15 +79,36 @@ export class AgentPanel {
         if (state?.config) {
           this.algorithm.set(state.config.algorithm);
           this.heuristic.set(state.config.heuristic);
+          this.weight.set(state.config.weight);
+          this.optimizer.set(state.config.optimizer);
+          this.optimizerParams.set({ ...state.config.optimizer_params });
           this.interval.set(state.config.interval_ms); this.maxTurns.set(state.config.max_turns);
         }
       }
     });
   }
 
+  delta(value: number | null, reference: number | null) {
+    if (value === null || !reference) return '';
+    const percent = Math.round((value / reference - 1) * 100);
+    return percent === 0 ? '±0%' : `${percent > 0 ? '+' : ''}${percent}%`;
+  }
+
+  paramValue(id: string, fallback: number) { return this.optimizerParams()[id] ?? fallback; }
+
+  setParam(id: string, value: number) { this.optimizerParams.update(params => ({ ...params, [id]: value })); }
+
+  setOptimizer(id: string) {
+    this.optimizer.set(id);
+    this.optimizerParams.set({});
+  }
+
   async create() {
     this.replay.set(null);
-    await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(),
+    const tuned = this.algorithm() === 'astar' && this.selectedOptimizer();
+    await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(), weight: this.weight(),
+      optimizer: tuned ? this.optimizer() : 'none',
+      optimizer_params: tuned ? Object.fromEntries(tuned.params.map(p => [p.id, this.paramValue(p.id, p.default)])) : {},
       interval_ms: this.interval(), max_turns: this.maxTurns() });
   }
 }

@@ -367,3 +367,39 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         state = (await self.agent.post('/step')).json()
         self.assertEqual(state['run']['run_id'], original['run']['run_id'])
         self.assertEqual(state['run']['observation']['turn'], 1)
+
+    async def test_optimizers_are_listed_with_their_parameters(self):
+        listing = (await self.agent.get('/optimizers')).json()
+        self.assertEqual({item['id'] for item in listing}, {'grid', 'random', 'hill_climbing'})
+        self.assertTrue(all(item['params'][0]['id'] == 'cost_weight' for item in listing))
+
+    async def test_weight_and_optimizer_validation(self):
+        for body in ({'weight': 0.5}, {'optimizer': 'bogus'}, {'optimizer': 'grid', 'algorithm': 'dijkstra'},
+                     {'optimizer': 'random', 'optimizer_params': {'trials': 0}},
+                     {'optimizer': 'random', 'optimizer_params': {'nope': 1}}):
+            with self.subTest(body=body):
+                response = await self.agent.post('/runs', json={'interval_ms': 50, **body})
+                self.assertEqual(response.status_code, 422, response.text)
+
+    async def test_optimizer_report_is_in_the_first_trace(self):
+        for optimizer in ('grid', 'random', 'hill_climbing'):
+            with self.subTest(optimizer=optimizer):
+                state = await self.create(optimizer=optimizer, optimizer_params={'time_weight': 0})
+                self.assertEqual(state['config']['optimizer'], optimizer)
+                self.assertEqual(state['config']['optimizer_params']['time_weight'], 0)
+                for _ in range(5):
+                    state = (await self.agent.post('/step')).json()
+                    if state['status'] == 'succeeded':
+                        break
+                self.assertEqual(state['status'], 'succeeded')
+                events = (await self.agent.get('/history')).json()['events']
+                tuning = events[0]['trace']['tuning']
+                self.assertEqual(tuning['optimizer'], optimizer)
+                self.assertTrue(tuning['trials'])
+                self.assertIsNone(events[1]['trace']['tuning'])
+                self.assertIn('chose heuristic', events[0]['explanation'])
+
+    async def test_weighted_astar_without_optimizer(self):
+        state = await self.create(weight=2.5)
+        self.assertEqual(state['config']['weight'], 2.5)
+        self.assertEqual(agent_app.state.runner.policy.algorithm.weight, 2.5)

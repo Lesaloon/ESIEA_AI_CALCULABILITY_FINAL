@@ -19,7 +19,7 @@ def trace_dict(trace):
     def points(values):
         return [dict(x=x, y=y) for x, y in values]
     return dict(expanded=points(trace.expanded), frontier=points(trace.frontier),
-                candidate_path=points(trace.candidate_path), scores=trace.scores)
+                candidate_path=points(trace.candidate_path), scores=trace.scores, tuning=trace.tuning)
 
 
 class Runner:
@@ -52,7 +52,8 @@ class Runner:
         async with self.lock:
             if self.continuous:
                 raise RunnerError('Pause before resetting the run')
-            agent_config = AgentConfig(config['heuristic'], config['algorithm'])
+            agent_config = AgentConfig(config['heuristic'], config['algorithm'], config['weight'],
+                                       config['optimizer'], config['optimizer_params'])
             try:
                 policy = Agent()
                 policy.reset(agent_config)

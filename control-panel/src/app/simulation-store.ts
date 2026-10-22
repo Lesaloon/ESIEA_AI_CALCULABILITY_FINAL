@@ -11,16 +11,31 @@ export interface Observation {
   goal_distances: Record<string, number>; goal_reached: boolean;
   neighbors: { position: Position; movement_cost: number; goal_distances: Record<string, number> }[];
 }
-export interface Trace { expanded: Position[]; frontier: Position[]; candidate_path: Position[]; scores: Record<string, unknown>[]; }
+export interface Trial {
+  heuristic: string; weight: number; found: boolean; cost: number | null; time_ms: number; memory_kb: number;
+  expanded: number; score: number | null;
+}
+export interface Reference { heuristic: string; weight: number; cost: number | null; time_ms: number; memory_kb: number; }
+export interface Tuning {
+  optimizer: string; label: string; params: Record<string, number>;
+  heuristic: string; weight: number; score: number | null; best: Trial; reference: Reference; trials: Trial[];
+}
+export interface Trace {
+  expanded: Position[]; frontier: Position[]; candidate_path: Position[]; scores: Record<string, unknown>[];
+  tuning: Tuning | null;
+}
 export interface TurnEvent {
   sequence: number; turn: number; from: Position; to: Position; action: string;
   step_cost: number; cumulative_cost: number; observation: Observation;
   reason: string; explanation: string; trace: Trace; knowledge: KnownCell[];
 }
 export interface RunConfig {
-  algorithm: string; heuristic: string; interval_ms: number; max_turns: number;
+  algorithm: string; heuristic: string; weight: number; optimizer: string; optimizer_params: Record<string, number>;
+  interval_ms: number; max_turns: number;
 }
 export interface Algorithm { id: string; label: string; description: string; }
+export interface OptimizerParam { id: string; label: string; default: number; min: number; max: number; step: number; }
+export interface Optimizer { id: string; label: string; description: string; params: OptimizerParam[]; }
 export interface AgentState {
   status: string; error: string; config: RunConfig | null; knowledge: KnownCell[]; history_count: number;
   initial_observation: Observation | null; final_path: Position[];
@@ -33,6 +48,7 @@ export class SimulationStore implements OnDestroy {
   readonly scenario = signal<Scenario>({ start: null, goal: null, locked: false });
   readonly state = signal<AgentState | null>(null);
   readonly algorithms = signal<Algorithm[]>([]);
+  readonly optimizers = signal<Optimizer[]>([]);
   readonly history = signal<TurnEvent[]>([]);
   readonly initialKnowledge = signal<KnownCell[]>([]);
   readonly runGrid = signal<GridRender | null>(null);
@@ -69,6 +85,9 @@ export class SimulationStore implements OnDestroy {
       this.connectionError.set('');
       if (!this.algorithms().length) {
         this.algorithms.set(await this.get<Algorithm[]>('/api/agent/algorithms'));
+      }
+      if (!this.optimizers().length) {
+        this.optimizers.set(await this.get<Optimizer[]>('/api/agent/optimizers'));
       }
       if (state.run) {
         const runId = state.run.run_id;

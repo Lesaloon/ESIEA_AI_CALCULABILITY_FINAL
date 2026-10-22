@@ -1,4 +1,9 @@
-"""Weighted A* search on the complete frozen run graph."""
+"""Weighted A* search on the complete frozen run graph.
+
+Priority is f = g + weight * h. weight = 1 is classic A*; weight > 1 trusts the
+heuristic more: fewer expansions, but the route may cost up to `weight` times the
+optimum (when h is admissible).
+"""
 
 from heapq import heappop, heappush
 from math import inf
@@ -8,13 +13,14 @@ from agent.models import PlanningResult, SearchTrace
 
 
 class AStar:
-    def __init__(self, heuristic='l1'):
+    def __init__(self, heuristic='l1', weight=1.0):
         self.heuristic = heuristic
+        self.weight = weight
 
     def estimate(self, node, target):
-        return distance(node, target, self.heuristic)
+        return self.weight * distance(node, target, self.heuristic)
 
-    def search(self, graph, start, target):
+    def search(self, graph, start, target, trace=True):
         costs = {start: 0.0}
         heuristics = {start: self.estimate(start, target)}
         parent = {start: None}
@@ -43,6 +49,8 @@ class AStar:
                     parent[neighbor] = node
                     heappush(frontier, (candidate_cost + heuristics[neighbor], neighbor, candidate_cost))
 
+        if not trace:
+            return PlanningResult(path, SearchTrace(expanded, [], path, []))
         remaining = sorted(
             (node for node in costs if costs[node] < expanded_at.get(node, inf)),
             key=lambda node: (costs[node] + heuristics[node], node),

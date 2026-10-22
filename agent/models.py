@@ -29,6 +29,9 @@ class Observation:
 class AgentConfig:
     heuristic: str = 'l1'
     algorithm: str = 'astar'
+    weight: float = 1.0  # Weighted A*: f = g + weight * h
+    optimizer: str = 'none'  # 'none', 'grid', 'random' or 'hill_climbing'
+    optimizer_params: Mapping[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -55,6 +58,7 @@ class SearchTrace:
     frontier: list[Position] = field(default_factory=list)
     candidate_path: list[Position] = field(default_factory=list)
     scores: list[dict] = field(default_factory=list)
+    tuning: dict | None = None  # Parameter-optimizer report, first decision only
 
 
 @dataclass

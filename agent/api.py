@@ -6,13 +6,16 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from agent.environment_client import EnvironmentClient
-from agent.registry import ALGORITHMS
+from agent.registry import ALGORITHMS, OPTIMIZERS
 from agent.runner import Runner, RunnerError
 
 
 class RunConfiguration(BaseModel):
     algorithm: str = 'astar'
     heuristic: str = 'l1'
+    weight: float = Field(default=1.0, ge=1, le=20)
+    optimizer: str = 'none'
+    optimizer_params: dict[str, float] = Field(default_factory=dict)
     interval_ms: int = Field(default=300, ge=50, le=5000, strict=True)
     max_turns: int = Field(default=1000, ge=1, le=10000, strict=True)
 
@@ -57,6 +60,13 @@ async def algorithms():
             for key, value in ALGORITHMS.items()]
 
 
+@app.get('/optimizers')
+async def optimizers():
+    return [dict(id=key, label=value.label, description=value.description,
+                 params=[param.__dict__ for param in value.params])
+            for key, value in OPTIMIZERS.items()]
+
+
 @app.get('/state')
 async def state(request: Request):
     async with request.app.state.runner.lock:
@@ -80,7 +90,17 @@ async def create_run(body: RunConfiguration, request: Request):
         raise HTTPException(422, 'Unknown algorithm')
     if body.heuristic not in ('zero', 'l1', 'l2', 'squared_l2', 'mse', 'linf'):
         raise HTTPException(422, 'Unknown heuristic')
-    return await request.app.state.runner.create(body.model_dump())
+    config = body.model_dump()
+    if body.optimizer != 'none':
+        if body.optimizer not in OPTIMIZERS:
+            raise HTTPException(422, 'Unknown optimizer')
+        if body.algorithm != 'astar':
+            raise HTTPException(422, 'Optimizers only tune A*')
+        try:
+            config['optimizer_params'] = OPTIMIZERS[body.optimizer].resolve(body.optimizer_params)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    return await request.app.state.runner.create(config)
 
 
 @app.post('/step')
