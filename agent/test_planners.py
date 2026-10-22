@@ -3,6 +3,7 @@ import unittest
 
 from agent.models import DiscoveredGraphView
 from agent.planners.template import AStarPlanner, DijkstraPlanner
+from agent.planners.weighted_astar import WeightedAStarPlanner
 
 
 def path_cost(graph, path):
@@ -94,6 +95,16 @@ class PlannerTests(unittest.TestCase):
                     self.assertEqual(path[0], start)
                     self.assertEqual(path[-1], target)
                     self.assertEqual(path_cost(g, path), expected)
+
+        def test_weighted_astar_special_cases(self):
+            g = make_graph({(0, 0): {(1, 0): 10, (0, 1): 1},
+                        (0, 1): {(1, 1): 1}, (1, 1): {(1, 0): 1}})
+            dijkstra = DijkstraPlanner().plan(g, (0, 0), (1, 0)).path
+            astar = AStarPlanner('l1').plan(g, (0, 0), (1, 0)).path
+            self.assertEqual(WeightedAStarPlanner(0).plan(g, (0, 0), (1, 0)).path, dijkstra)
+            self.assertEqual(WeightedAStarPlanner(1, 'l1').plan(g, (0, 0), (1, 0)).path, astar)
+            with self.assertRaises(ValueError):
+                WeightedAStarPlanner(-1)
 
 
 if __name__ == '__main__':
