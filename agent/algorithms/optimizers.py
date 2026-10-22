@@ -232,3 +232,94 @@ class HillClimbing(Optimizer):
                 break
             current = best
         return current
+
+
+def local_neighbors(optimizer, current, low, high, step):
+    """Neighbors of (heuristic, weight): weight ± step inside the range, or another heuristic."""
+    h, w = current
+    neighbors = [(h, min(max(round(w + d, 3), low), high)) for d in (-step, step)]
+    neighbors += [(other, w) for other in optimizer.heuristics(optimizer.start_heuristic) if other != h]
+    return [n for n in dict.fromkeys(neighbors) if n != (h, round(w, 3))]
+
+
+class SimulatedAnnealing(Optimizer):
+    label = 'Simulated annealing'
+    description = ('Hill climbing with controlled randomness: at each step a random number e in [0, 1] is drawn; '
+                   'if e <= temperature it moves to a random neighbor (even a worse one), otherwise to the best '
+                   'neighbor when it improves. The temperature decreases at each iteration, and the best point '
+                   'ever seen is kept. Randomness lets it leave a local optimum.')
+    uses_start = True
+    params = (LOCK,
+              Param('weight_min', 'Weight min', 1, 1, 20, 0.1),
+              Param('weight_max', 'Weight max', 5, 1, 20, 0.1),
+              Param('step', 'Weight step', 0.5, 0.1, 5, 0.1),
+              Param('max_iterations', 'Iterations', 30, 1, 200, 1),
+              Param('temperature', 'Initial temperature', 1, 0, 1, 0.05, group='Annealing'),
+              Param('cooling', 'Cooling factor', 0.9, 0.5, 1, 0.01, group='Annealing'),
+              Param('seed', 'Seed', 42, 0, 1_000_000, 1, group='Annealing'),
+              *CRITERIA)
+
+    @classmethod
+    def validate(cls, v):
+        if v['weight_min'] > v['weight_max']:
+            raise ValueError('Weight min must not exceed weight max')
+
+    def optimize(self, evaluate, heuristic, weight):
+        v = self.values
+        low, high = v['weight_min'], v['weight_max']
+        rng = random.Random(int(v['seed']))
+        self.start_heuristic = heuristic
+        current = heuristic, round(min(max(weight, low), high), 3)
+        best = current
+        for k in range(int(v['max_iterations'])):
+            temperature = v['temperature'] * v['cooling'] ** k
+            neighbors = local_neighbors(self, current, low, high, v['step'])
+            if not neighbors:
+                break
+            if rng.random() <= temperature:
+                current = rng.choice(neighbors)          # exploration: accepted even if worse
+            else:
+                candidate = self.best_of(evaluate, neighbors)
+                if evaluate(*candidate) < evaluate(*current):
+                    current = candidate                  # exploitation: hill-climbing move
+            if evaluate(*current) < evaluate(*best):
+                best = current
+        evaluate(*best)
+        return best
+
+
+class TabuSearch(Optimizer):
+    label = 'Tabu search'
+    description = ('Hill climbing with memory: a tested (heuristic, weight) can never be tested again. It always '
+                   'moves to the best non-tabu neighbor, even a worse one, so it cannot cycle and is pushed out '
+                   'of local optima. The best point ever seen is kept.')
+    uses_start = True
+    params = (LOCK,
+              Param('weight_min', 'Weight min', 1, 1, 20, 0.1),
+              Param('weight_max', 'Weight max', 5, 1, 20, 0.1),
+              Param('step', 'Weight step', 0.5, 0.1, 5, 0.1),
+              Param('max_iterations', 'Iterations', 20, 1, 200, 1),
+              *CRITERIA)
+
+    @classmethod
+    def validate(cls, v):
+        if v['weight_min'] > v['weight_max']:
+            raise ValueError('Weight min must not exceed weight max')
+
+    def optimize(self, evaluate, heuristic, weight):
+        v = self.values
+        low, high = v['weight_min'], v['weight_max']
+        self.start_heuristic = heuristic
+        current = heuristic, round(min(max(weight, low), high), 3)
+        best = current
+        tabu = {current}
+        evaluate(*current)
+        for _ in range(int(v['max_iterations'])):
+            allowed = [n for n in local_neighbors(self, current, low, high, v['step']) if n not in tabu]
+            if not allowed:
+                break                                    # every neighbor already tested
+            current = self.best_of(evaluate, allowed)    # may be worse than the current point
+            tabu.add(current)
+            if evaluate(*current) < evaluate(*best):
+                best = current
+        return best

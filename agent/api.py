@@ -1,10 +1,13 @@
 """Browser-facing controls; all environment access goes through gRPC."""
 
+import asyncio
 from contextlib import asynccontextmanager
+from typing import Literal
 import grpc
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from agent import experiments
 from agent.environment_client import EnvironmentClient
 from agent.registry import ALGORITHMS, OPTIMIZERS
 from agent.runner import Runner, RunnerError
@@ -18,6 +21,41 @@ class RunConfiguration(BaseModel):
     optimizer_params: dict[str, float] = Field(default_factory=dict)
     interval_ms: int = Field(default=300, ge=50, le=5000, strict=True)
     max_turns: int = Field(default=1000, ge=1, le=10000, strict=True)
+
+
+Heuristic = Literal['zero', 'l1', 'l2', 'squared_l2', 'mse', 'linf']
+Obstacle = Literal['none', 'u', 'wall', 'random']
+
+
+class MapSelection(BaseModel):
+    """Map configurations to build: every combination of sizes, connectivities and obstacles."""
+    sizes: list[int] = Field(default=[20], min_length=1, max_length=4)
+    connectivities: list[Literal[4, 8]] = Field(default=[4, 8], min_length=1, max_length=2)
+    obstacles: list[Obstacle] = Field(default=['none', 'u', 'wall'], min_length=1, max_length=4)
+    weights: Literal['random', 'uniform'] = 'random'
+    seed: int = Field(default=0, ge=0, le=1_000_000)
+
+
+class BenchmarkRequest(MapSelection):
+    heuristics: list[Heuristic] = Field(default=['l1', 'l2'], min_length=1, max_length=6)
+    algorithms: list[Literal['dijkstra', 'astar', 'weighted_astar', 'greedy']] = Field(
+        default=['dijkstra', 'astar', 'weighted_astar', 'greedy'], min_length=1, max_length=4)
+    weight: float = Field(default=2.0, ge=1, le=20)
+    repeat: int = Field(default=3, ge=1, le=7)
+
+
+class TransferRequest(MapSelection):
+    sizes: list[int] = Field(default=[10, 20, 30], min_length=1, max_length=4)
+    obstacles: list[Obstacle] = Field(default=['none', 'u', 'wall', 'random'], min_length=1, max_length=4)
+    heuristic: Heuristic = 'linf'
+    weight: float = Field(default=2.0, ge=1, le=20)
+    lock_heuristic: bool = False
+    weight_min: float = Field(default=1.0, ge=1, le=20)
+    weight_max: float = Field(default=5.0, ge=1, le=20)
+    weight_step: float = Field(default=0.5, ge=0.1, le=5)
+    cost_weight: float = Field(default=1.0, ge=0, le=10)
+    time_weight: float = Field(default=1.0, ge=0, le=10)
+    memory_weight: float = Field(default=1.0, ge=0, le=10)
 
 
 @asynccontextmanager
@@ -65,6 +103,33 @@ async def optimizers():
     return [dict(id=key, label=value.label, description=value.description, uses_start=value.uses_start,
                  params=[param.__dict__ for param in value.params])
             for key, value in OPTIMIZERS.items()]
+
+
+async def experiment(function, **values):
+    """CPU-bound experiments run off the event loop so the simulation stays responsive."""
+    if any(not 8 <= size <= 40 for size in values.get('sizes', [])):
+        raise HTTPException(422, 'Map sizes must be between 8 and 40')
+    try:
+        return await asyncio.to_thread(function, **values)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post('/experiments/benchmark')
+async def benchmark(body: BenchmarkRequest):
+    """Compare the algorithms on generated maps (time, memory, explored nodes, depth, cost)."""
+    return await experiment(experiments.benchmark, **body.model_dump())
+
+
+@app.post('/experiments/transfer')
+async def transfer(body: TransferRequest):
+    """Test a tuned (heuristic, weight) on variable configurations against other strategies."""
+    values = body.model_dump()
+    if values['weight_min'] > values['weight_max']:
+        raise HTTPException(422, 'Weight min must not exceed weight max')
+    if not any(values[k] for k in ('cost_weight', 'time_weight', 'memory_weight')):
+        raise HTTPException(422, 'At least one importance must be above zero')
+    return await experiment(experiments.transfer, **values)
 
 
 @app.get('/state')
