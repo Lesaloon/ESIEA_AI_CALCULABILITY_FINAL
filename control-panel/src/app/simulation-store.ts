@@ -18,7 +18,15 @@ export interface TurnEvent {
   reason: string; explanation: string; trace: Trace; knowledge: KnownCell[];
 }
 export interface RunConfig {
-  algorithm: string; heuristic: string; interval_ms: number; max_turns: number;
+  algorithm: string; heuristic: string; w?: number; interval_ms: number; max_turns: number;
+}
+export interface GridSearchTrial {
+  w: number; cost: number | null; duration: number; expansions: number; score: number | null;
+}
+export interface GridSearchReport { best: GridSearchTrial; trials: GridSearchTrial[]; }
+export interface GridSearchRequest {
+  heuristic: string; low: number; high: number; step: number;
+  start: Position; goal: Position; weights: (number | null)[][];
 }
 export interface Algorithm { id: string; label: string; description: string; }
 export interface AgentState {
@@ -109,6 +117,14 @@ export class SimulationStore implements OnDestroy {
     await this.command(async () => {
       this.state.set(await firstValueFrom(this.http.post<AgentState>(`/api/agent/${action}`, {}).pipe(timeout(15000))));
     });
+  }
+
+  async gridSearch(body: GridSearchRequest): Promise<GridSearchReport | null> {
+    let report: GridSearchReport | null = null;
+    await this.command(async () => {
+      report = await firstValueFrom(this.http.post<GridSearchReport>('/api/agent/grid-search', body).pipe(timeout(20000)));
+    });
+    return report;
   }
 
   async create(config: RunConfig) {

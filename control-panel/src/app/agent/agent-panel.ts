@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { DecimalPipe, JsonPipe } from '@angular/common';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { EnvironmentStore } from '../environment/environment-store';
-import { SimulationStore } from '../simulation-store';
+import { GridSearchReport, SimulationStore } from '../simulation-store';
 import { SimulationGrid } from '../simulation-grid';
 
 @Component({
@@ -17,6 +17,11 @@ export class AgentPanel {
   readonly env = inject(EnvironmentStore);
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
+  readonly weight = signal(1);
+  readonly searchLow = signal(1);
+  readonly searchHigh = signal(10);
+  readonly searchStep = signal(1);
+  readonly report = signal<GridSearchReport | null>(null);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -49,7 +54,12 @@ export class AgentPanel {
   readonly cost = computed(() => this.replay() === null ? this.sim.state()?.run?.cumulative_cost ?? 0
     : this.displayedEvent()?.cumulative_cost ?? 0);
   readonly configValid = computed(() => Number.isInteger(this.interval()) && this.interval() >= 50 && this.interval() <= 5000
-    && Number.isInteger(this.maxTurns()) && this.maxTurns() >= 1 && this.maxTurns() <= 10000);
+    && Number.isInteger(this.maxTurns()) && this.maxTurns() >= 1 && this.maxTurns() <= 10000
+    && (this.algorithm() !== 'weighted_astar' || (Number.isFinite(this.weight()) && this.weight() >= 1)));
+  readonly searchValid = computed(() => {
+    const low = this.searchLow(), high = this.searchHigh(), step = this.searchStep();
+    return [low, high, step].every(Number.isFinite) && low >= 1 && high >= low && step > 0 && (high - low) / step <= 200;
+  });
   readonly selectedAlgorithm = computed(() => this.sim.algorithms().find(a => a.id === this.algorithm()));
 
   constructor() {
@@ -62,6 +72,7 @@ export class AgentPanel {
         if (state?.config) {
           this.algorithm.set(state.config.algorithm);
           this.heuristic.set(state.config.heuristic);
+          if (typeof state.config.w === 'number') this.weight.set(state.config.w);
           this.interval.set(state.config.interval_ms); this.maxTurns.set(state.config.max_turns);
         }
       }
@@ -71,6 +82,18 @@ export class AgentPanel {
   async create() {
     this.replay.set(null);
     await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(),
+      w: this.algorithm() === 'weighted_astar' ? this.weight() : 1,
       interval_ms: this.interval(), max_turns: this.maxTurns() });
+  }
+
+  async compareWeights() {
+    const grid = this.sim.runGrid() ?? this.env.grid();
+    const { start, goal } = this.sim.scenario();
+    if (!grid || !start || !goal) return;
+    const report = await this.sim.gridSearch({
+      heuristic: this.heuristic(), low: this.searchLow(), high: this.searchHigh(), step: this.searchStep(),
+      start, goal, weights: grid.weights,
+    });
+    if (report) this.report.set(report);
   }
 }

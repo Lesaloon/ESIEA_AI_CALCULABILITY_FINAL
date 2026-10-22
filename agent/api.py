@@ -5,16 +5,37 @@ import grpc
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from math import inf, isfinite
+
+from agent.algorithms.grid_search import graph_from_weights, grid_search
 from agent.environment_client import EnvironmentClient
 from agent.registry import ALGORITHMS
 from agent.runner import Runner, RunnerError
+
+HEURISTICS = ('zero', 'l1', 'l2', 'squared_l2', 'mse', 'linf')
 
 
 class RunConfiguration(BaseModel):
     algorithm: str = 'astar'
     heuristic: str = 'l1'
+    w: float = Field(default=1.0, ge=1)
     interval_ms: int = Field(default=300, ge=50, le=5000, strict=True)
     max_turns: int = Field(default=1000, ge=1, le=10000, strict=True)
+
+
+class GridPoint(BaseModel):
+    x: int = Field(strict=True)
+    y: int = Field(strict=True)
+
+
+class GridSearchConfiguration(BaseModel):
+    heuristic: str = 'l1'
+    low: float = Field(default=1, ge=1)
+    high: float = Field(default=10, ge=1)
+    step: float = Field(default=1, gt=0)
+    start: GridPoint
+    goal: GridPoint
+    weights: list[list[float | None]] = Field(min_length=1, max_length=40)
 
 
 @asynccontextmanager
@@ -78,9 +99,46 @@ async def history(request: Request, after_sequence: int = 0, run_id: str = ''):
 async def create_run(body: RunConfiguration, request: Request):
     if body.algorithm not in ALGORITHMS:
         raise HTTPException(422, 'Unknown algorithm')
-    if body.heuristic not in ('zero', 'l1', 'l2', 'squared_l2', 'mse', 'linf'):
+    if body.heuristic not in HEURISTICS:
         raise HTTPException(422, 'Unknown heuristic')
     return await request.app.state.runner.create(body.model_dump())
+
+
+def _finite(value):
+    return None if value == inf or not isfinite(value) else value
+
+
+def _public_trial(trial):
+    return dict(w=trial['w'], cost=_finite(trial['cost']), duration=trial['duration'],
+                expansions=trial['expansions'], score=_finite(trial['score']))
+
+
+@app.post('/grid-search')
+async def search_weights(body: GridSearchConfiguration):
+    if body.heuristic not in HEURISTICS:
+        raise HTTPException(422, 'Unknown heuristic')
+    if body.low > body.high:
+        raise HTTPException(422, 'The lower bound must not exceed the upper bound')
+    if int((body.high - body.low) / body.step + 1e-9) + 1 > 200:
+        raise HTTPException(422, 'Too many values; increase the step')
+    try:
+        _require_walkable(body.weights, body.start, 'Start')
+        _require_walkable(body.weights, body.goal, 'Goal')
+        report = grid_search(
+            graph_from_weights(body.weights), (body.start.x, body.start.y), (body.goal.x, body.goal.y),
+            body.heuristic, body.low, body.high, body.step)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    trials = [_public_trial(trial) for trial in report['trials']]
+    best = next(trial for trial in trials if trial['w'] == report['best']['w'])
+    return dict(best=best, trials=trials)
+
+
+def _require_walkable(weights, point, label):
+    if point.y < 0 or point.y >= len(weights) or not weights[point.y] or point.x < 0 or point.x >= len(weights[point.y]):
+        raise ValueError(f'{label} is outside the map')
+    if weights[point.y][point.x] is None:
+        raise ValueError(f'{label} must be a walkable cell')
 
 
 @app.post('/step')

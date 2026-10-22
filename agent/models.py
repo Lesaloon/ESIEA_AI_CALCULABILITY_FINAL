@@ -29,6 +29,7 @@ class Observation:
 class AgentConfig:
     heuristic: str = 'l1'
     algorithm: str = 'astar'
+    w: float = 1.0
 
 
 @dataclass(frozen=True)

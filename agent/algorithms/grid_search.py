@@ -4,6 +4,7 @@ from math import inf, isfinite
 from time import perf_counter
 
 from agent.algorithms.weighted_astar import WeightedAStar
+from agent.memory import RunGraph
 
 
 def grid_search(graph, start, target, heuristic='l1', low=1, high=10, step=1):
@@ -33,6 +34,23 @@ def grid_search(graph, start, target, heuristic='l1', low=1, high=10, step=1):
         trial['score'] = _score(trial, best_cost, best_duration)
     best = min(trials, key=lambda trial: (trial['score'], trial['w']))
     return dict(best=best, trials=trials)
+
+
+def graph_from_weights(weights):
+    """Build the same movement graph as a run: each step costs the destination cell."""
+    if not weights or any(len(row) != len(weights[0]) for row in weights):
+        raise ValueError('The map must be a non-empty rectangle')
+    cells = [
+        {'position': {'x': x, 'y': y}, 'weight': weight}
+        for y, row in enumerate(weights)
+        for x, weight in enumerate(row)
+        if weight is not None
+    ]
+    if not cells:
+        raise ValueError('The map has no walkable cell')
+    memory = RunGraph()
+    memory.seed({'walkable_cells': cells})
+    return memory.view()
 
 
 def _weights(low, high, step):

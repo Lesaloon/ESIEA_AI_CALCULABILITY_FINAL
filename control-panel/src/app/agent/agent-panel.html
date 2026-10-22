@@ -3,7 +3,7 @@
     <div><p class="eyebrow">Heuristic search laboratory</p><h2 id="agent-title">Agent execution</h2></div>
     <span class="availability" role="status">{{ sim.state()?.status ?? 'Connecting…' }}</span>
   </header>
-  <p class="intro">The agent knows the complete map. Choose Dijkstra or A* to compute a route, then follow it one move per turn. The agent stops at the goal without exploring other cells.</p>
+  <p class="intro">The agent knows the complete map. Choose Dijkstra, A* or Weighted A* to compute a route, then follow it one move per turn. The agent stops at the goal without exploring other cells.</p>
 
   <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
     <legend class="sr-only">Run configuration</legend>
@@ -21,12 +21,54 @@
         <option value="squared_l2">Squared L2</option><option value="mse">MSE</option>
       </select>
     </label>
+    @if (algorithm() === 'weighted_astar') {
+      <label>Weight w<input #weightInput type="number" min="1" step="0.1" [value]="weight()" (input)="weight.set(weightInput.valueAsNumber)"></label>
+    }
     <label>Turn interval (ms)<input #speedInput type="number" min="50" max="5000" step="50" [value]="interval()" (input)="interval.set(speedInput.valueAsNumber)"></label>
     <label>Maximum turns<input #limitInput type="number" min="1" max="10000" step="1" [value]="maxTurns()" (input)="maxTurns.set(limitInput.valueAsNumber)"></label>
   </fieldset>
   <p class="help">{{ selectedAlgorithm()?.description }} L∞ is an admissible estimate for eight-way movement. Settings apply when creating or resetting a run.</p>
   @if (algorithm() === 'astar' && heuristic() !== 'zero' && heuristic() !== 'linf') {
     <p class="help">This heuristic can overestimate path cost with eight-way movement; A* optimality is not guaranteed.</p>
+  }
+  @if (algorithm() === 'weighted_astar') {
+    <section class="grid-search" aria-labelledby="grid-search-title">
+      <h3 id="grid-search-title">Grid search on w</h3>
+      <p class="help">Compare weighted A* for each w between the bounds, on the map shown below. The search does not move the agent. Click a row to keep that w for the next run.</p>
+      <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
+        <legend class="sr-only">Grid search bounds</legend>
+        <label>Lower bound<input #lowInput type="number" min="1" step="0.1" [value]="searchLow()" (input)="searchLow.set(lowInput.valueAsNumber)"></label>
+        <label>Upper bound<input #highInput type="number" min="1" step="0.1" [value]="searchHigh()" (input)="searchHigh.set(highInput.valueAsNumber)"></label>
+        <label>Step<input #stepInput type="number" min="0.1" step="0.1" [value]="searchStep()" (input)="searchStep.set(stepInput.valueAsNumber)"></label>
+      </fieldset>
+      <div class="actions">
+        <button hlmBtn [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal || !searchValid()"
+          (click)="compareWeights()">Compare</button>
+      </div>
+      @if (report(); as report) {
+        <p class="help">
+          @if (report.best.cost === null) { No route for these weights. }
+          @else { Best w is {{ report.best.w | number:'1.0-2' }} · cost {{ report.best.cost | number:'1.0-2' }} · {{ report.best.duration * 1000 | number:'1.0-3' }} ms · {{ report.best.expansions }} nodes. }
+        </p>
+        <div class="history-scroll">
+          <table>
+            <caption class="sr-only">Weighted A* grid search results</caption>
+            <thead><tr><th>w</th><th>Cost</th><th>Nodes</th><th>Duration (ms)</th><th>Score</th></tr></thead>
+            <tbody>
+              @for (trial of report.trials; track trial.w) {
+                <tr [class.selected]="trial.w === report.best.w" (click)="weight.set(trial.w)">
+                  <td>{{ trial.w | number:'1.0-2' }}</td>
+                  <td>{{ trial.cost === null ? '—' : (trial.cost | number:'1.0-2') }}</td>
+                  <td>{{ trial.expansions }}</td>
+                  <td>{{ trial.duration * 1000 | number:'1.0-3' }}</td>
+                  <td>{{ trial.score === null ? '—' : (trial.score | number:'1.0-3') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
   }
   <div class="actions">
     <button hlmBtn variant="outline" [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal || !configValid() || !selectedAlgorithm()"

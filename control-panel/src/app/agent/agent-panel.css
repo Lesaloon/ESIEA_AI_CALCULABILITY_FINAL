@@ -17,6 +17,9 @@ select, .configuration input { border: 1px solid var(--border); border-radius: 4
 .configuration .full-knowledge input { width: auto; }
 select:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.grid-search { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.grid-search .actions { margin: 12px 0; }
+.grid-search tbody tr { cursor: pointer; }
 .error { color: var(--destructive); font-size: 13px; margin: 12px 0; }
 .execution-layout { display: grid; grid-template-columns: minmax(0, 1fr) 245px; border-top: 1px solid var(--border); margin-top: 24px; }
 .map-panel { padding: 20px 24px 20px 0; min-width: 0; }

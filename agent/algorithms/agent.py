@@ -7,7 +7,8 @@ from agent.registry import ALGORITHMS
 class Agent:
     def reset(self, config):
         self.config = config
-        self.algorithm = ALGORITHMS[config.algorithm].factory(config.heuristic)
+        factory = ALGORITHMS[config.algorithm].factory
+        self.algorithm = factory(config.heuristic, w=config.w) if config.algorithm == 'weighted_astar' else factory(config.heuristic)
         self.path = None
 
     def decide(self, observation, knowledge):
