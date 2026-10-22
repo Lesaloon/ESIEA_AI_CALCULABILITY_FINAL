@@ -33,11 +33,15 @@ class Param:
     min: float
     max: float
     step: float
+    boolean: bool = False  # 0/1 flag, shown as a checkbox
+    group: str = 'Search space'  # The UI shows parameters of one group in one block
 
 
-CRITERIA = (Param('cost_weight', 'Cost importance', 1, 0, 10, 0.1),
-            Param('time_weight', 'Time importance', 1, 0, 10, 0.1),
-            Param('memory_weight', 'Memory importance', 1, 0, 10, 0.1))
+CRITERIA = (Param('cost_weight', 'Cost importance', 1, 0, 10, 0.1, group='Scoring importance'),
+            Param('time_weight', 'Time importance', 1, 0, 10, 0.1, group='Scoring importance'),
+            Param('memory_weight', 'Memory importance', 1, 0, 10, 0.1, group='Scoring importance'))
+LOCK = Param('lock_heuristic', 'Lock the heuristic (tune only the weight)', 0, 0, 1, 1,
+             boolean=True, group='Heuristic')
 
 
 def path_cost(graph, path):
@@ -98,7 +102,8 @@ class Evaluator:
 class Optimizer:
     label = ''
     description = ''
-    params: tuple[Param, ...] = CRITERIA
+    params: tuple[Param, ...] = (LOCK, *CRITERIA)
+    uses_start = False  # True when the heuristic and weight of the run configuration are a starting point
 
     def __init__(self, values=None):
         self.values = self.resolve(values or {})
@@ -118,6 +123,8 @@ class Optimizer:
             values[param.id] = value
         if not any(values[p.id] for p in CRITERIA):
             raise ValueError('At least one importance must be above zero')
+        if values[LOCK.id] not in (0, 1):
+            raise ValueError('Lock heuristic must be 0 or 1')
         cls.validate(values)
         return values
 
@@ -128,8 +135,13 @@ class Optimizer:
     def tune(self, graph, start, target, heuristic, weight):
         """Return (best_heuristic, best_weight, trials, reference)."""
         evaluate = Evaluator(graph, start, target, self.values)
-        best = self.optimize(evaluate, heuristic if heuristic in HEURISTICS else 'l1', weight)
+        start = heuristic if self.values[LOCK.id] or heuristic in HEURISTICS else 'l1'
+        best = self.optimize(evaluate, start, weight)
         return best[0], best[1], evaluate.trials, evaluate.reference
+
+    def heuristics(self, selected):
+        """Heuristics the search may use: only the selected one when locked."""
+        return (selected,) if self.values[LOCK.id] else HEURISTICS
 
     def optimize(self, evaluate, heuristic, weight):
         raise NotImplementedError
@@ -143,10 +155,11 @@ class Optimizer:
 class GridSearch(Optimizer):
     label = 'Grid search'
     description = 'Tries every heuristic with every weight from min to max in fixed steps.'
-    params = (*CRITERIA,
+    params = (LOCK,
               Param('weight_min', 'Weight min', 1, 1, 20, 0.1),
               Param('weight_max', 'Weight max', 3, 1, 20, 0.1),
-              Param('weight_step', 'Weight step', 0.5, 0.1, 5, 0.1))
+              Param('weight_step', 'Weight step', 0.5, 0.1, 5, 0.1),
+              *CRITERIA)
 
     @classmethod
     def validate(cls, v):
@@ -159,21 +172,31 @@ class GridSearch(Optimizer):
         v = self.values
         count = int((v['weight_max'] - v['weight_min']) / v['weight_step'] + 1e-9)
         weights = [round(v['weight_min'] + i * v['weight_step'], 3) for i in range(count + 1)]
-        return self.best_of(evaluate, product(HEURISTICS, weights))
+        return self.best_of(evaluate, product(self.heuristics(heuristic), weights))
 
 
 class RandomSearch(Optimizer):
     label = 'Random search'
     description = 'Samples random (heuristic, weight) pairs and keeps the best one.'
-    params = (*CRITERIA,
+    params = (LOCK,
               Param('trials', 'Trials', 20, 1, 200, 1),
+              Param('weight_min', 'Weight min', 1, 1, 20, 0.1),
               Param('weight_max', 'Weight max', 5, 1, 20, 0.1),
-              Param('seed', 'Seed', 42, 0, 1_000_000, 1))
+              Param('seed', 'Seed', 42, 0, 1_000_000, 1),
+              *CRITERIA)
+
+    @classmethod
+    def validate(cls, v):
+        if v['weight_min'] > v['weight_max']:
+            raise ValueError('Weight min must not exceed weight max')
 
     def optimize(self, evaluate, heuristic, weight):
         v = self.values
         rng = random.Random(int(v['seed']))
-        candidates = [(rng.choice(HEURISTICS), round(rng.uniform(1, v['weight_max']), 1))
+        pool = self.heuristics(heuristic)
+        # Rounding to one decimal can step outside the bounds, hence the clamp.
+        candidates = [(rng.choice(pool), min(max(round(rng.uniform(v['weight_min'], v['weight_max']), 1),
+                                                 v['weight_min']), v['weight_max']))
                       for _ in range(int(v['trials']))]
         return self.best_of(evaluate, candidates)
 
@@ -182,19 +205,28 @@ class HillClimbing(Optimizer):
     label = 'Hill climbing'
     description = ('Starts from the chosen heuristic and weight, then repeatedly moves to the best '
                    'neighbor (weight ± step, or another heuristic) until none improves.')
-    params = (*CRITERIA,
+    uses_start = True
+    params = (LOCK,
+              Param('weight_min', 'Weight min', 1, 1, 20, 0.1),
               Param('weight_max', 'Weight max', 5, 1, 20, 0.1),
               Param('step', 'Weight step', 0.5, 0.1, 5, 0.1),
-              Param('max_iterations', 'Max iterations', 20, 1, 100, 1))
+              Param('max_iterations', 'Max iterations', 20, 1, 100, 1),
+              *CRITERIA)
+
+    @classmethod
+    def validate(cls, v):
+        if v['weight_min'] > v['weight_max']:
+            raise ValueError('Weight min must not exceed weight max')
 
     def optimize(self, evaluate, heuristic, weight):
         v = self.values
-        current = heuristic, min(max(weight, 1.0), v['weight_max'])
+        low, high = v['weight_min'], v['weight_max']
+        current = heuristic, min(max(weight, low), high)
         evaluate(*current)
         for _ in range(int(v['max_iterations'])):
             h, w = current
-            neighbors = [(h, min(max(round(w + d, 3), 1.0), v['weight_max'])) for d in (-v['step'], v['step'])]
-            neighbors += [(other, w) for other in HEURISTICS if other != h]
+            neighbors = [(h, min(max(round(w + d, 3), low), high)) for d in (-v['step'], v['step'])]
+            neighbors += [(other, w) for other in self.heuristics(heuristic) if other != h]
             best = self.best_of(evaluate, neighbors)
             if evaluate(*best) >= evaluate(*current):
                 break

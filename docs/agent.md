@@ -227,13 +227,13 @@ score = cost_weight * cost/cost_ref + time_weight * time/time_ref + memory_weigh
 
 `cost` is the route cost, `time` the best of 3 search durations, `memory` the peak
 allocation of one search (`tracemalloc`). The three importances are editable in the UI;
-set one to 0 to ignore a criterion. Time depends on the machine and is slightly noisy.
+set one to 0 to ignore a criterion. Time depends on the machine and is slightly noisy. Every optimizer also has `lock_heuristic` (0 by default, a checkbox in the UI): at 1 it keeps the heuristic selected in the run configuration and tunes only the weight.
 
 | Id | Optimizer | Parameters (besides the three importances) |
 | --- | --- | --- |
 | `grid` | Tries every heuristic × every weight between min and max | `weight_min`, `weight_max`, `weight_step` |
-| `random` | Samples random pairs, keeps the best | `trials`, `weight_max`, `seed` |
-| `hill_climbing` | Starts at the chosen heuristic/weight, moves to the best neighbor (`w ± step`, or another heuristic) until none improves | `weight_max`, `step`, `max_iterations` |
+| `random` | Samples random pairs, keeps the best | `trials`, `weight_min`, `weight_max`, `seed` |
+| `hill_climbing` | Starts at the chosen heuristic/weight, moves to the best neighbor (`w ± step`, or another heuristic) until none improves | `weight_min`, `weight_max`, `step`, `max_iterations` |
 
 `GET /optimizers` lists them with their parameters; the UI builds its form from that
 list. `POST /runs` accepts `weight`, `optimizer` (`none` by default) and

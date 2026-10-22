@@ -34,8 +34,8 @@ export interface RunConfig {
   interval_ms: number; max_turns: number;
 }
 export interface Algorithm { id: string; label: string; description: string; }
-export interface OptimizerParam { id: string; label: string; default: number; min: number; max: number; step: number; }
-export interface Optimizer { id: string; label: string; description: string; params: OptimizerParam[]; }
+export interface OptimizerParam { id: string; label: string; default: number; min: number; max: number; step: number; boolean?: boolean; group: string; }
+export interface Optimizer { id: string; label: string; description: string; uses_start: boolean; params: OptimizerParam[]; }
 export interface AgentState {
   status: string; error: string; config: RunConfig | null; knowledge: KnownCell[]; history_count: number;
   initial_observation: Observation | null; final_path: Position[];

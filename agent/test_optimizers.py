@@ -75,11 +75,36 @@ class OptimizerTests(TestCase):
         self.assertLessEqual(len(first[2]), 15)
         self.assertTrue(all(1 <= t['weight'] <= 5 for t in first[2]))
 
+    def test_random_search_stays_within_the_weight_range(self):
+        _, _, trials = self.tune(RandomSearch, trials=40, weight_min=3, weight_max=3.4)
+        self.assertTrue(all(3 <= t['weight'] <= 3.4 for t in trials))
+        self.assertGreater(len({t['weight'] for t in trials}), 1)
+
+    def test_hill_climbing_stays_within_the_weight_range(self):
+        # The starting weight (1.0) is below the range, so it is clamped to weight_min.
+        _, weight, trials = self.tune(HillClimbing, weight_min=2, weight_max=3, step=0.5, max_iterations=10)
+        self.assertEqual(trials[0]['weight'], 2)
+        self.assertTrue(all(2 <= t['weight'] <= 3 for t in trials))
+        self.assertTrue(2 <= weight <= 3)
+
     def test_hill_climbing_never_ends_worse_than_its_start(self):
         heuristic, weight, trials = self.tune(HillClimbing, step=0.5, max_iterations=10)
         scores = {(t['heuristic'], t['weight']): t['score'] for t in trials}
         self.assertLessEqual(scores[(heuristic, weight)], scores[('l1', 1.0)])
         self.assertEqual(trials[0]['heuristic'], 'l1')
+
+    def test_locked_heuristic_only_tunes_the_weight(self):
+        for optimizer, values in ((GridSearch, dict(weight_min=1, weight_max=2, weight_step=0.5)),
+                                  (RandomSearch, dict(trials=10)), (HillClimbing, dict(max_iterations=5))):
+            with self.subTest(optimizer=optimizer.__name__):
+                heuristic, _, trials = self.tune(optimizer, lock_heuristic=1, **values)
+                self.assertEqual(heuristic, 'l1')
+                self.assertEqual({t['heuristic'] for t in trials}, {'l1'})
+
+    def test_locked_heuristic_is_kept_even_when_it_is_not_tunable(self):
+        heuristic, _, trials, _ = GridSearch(dict(lock_heuristic=1, weight_max=1)).tune(
+            self.graph, (0, 0), (9, 9), 'zero', 1.0)
+        self.assertEqual((heuristic, {t['heuristic'] for t in trials}), ('zero', {'zero'}))
 
     def test_unreachable_goal_yields_null_scores(self):
         graph = RunGraph()
@@ -92,7 +117,8 @@ class OptimizerTests(TestCase):
         for optimizer, values in ((GridSearch, {'weight_min': 3, 'weight_max': 2}),
                                   (GridSearch, {'weight_step': 0.1, 'weight_max': 20}),
                                   (RandomSearch, {'trials': 0}), (HillClimbing, {'bogus': 1}),
-                                  (RandomSearch, {'seed': True}),
+                                  (RandomSearch, {'seed': True}), (GridSearch, {'lock_heuristic': 0.5}),
+                                  (RandomSearch, {'weight_min': 6}), (HillClimbing, {'weight_min': 6}),
                                   (GridSearch, {'cost_weight': 0, 'time_weight': 0, 'memory_weight': 0})):
             with self.subTest(optimizer=optimizer.__name__, values=values):
                 with self.assertRaises(ValueError):

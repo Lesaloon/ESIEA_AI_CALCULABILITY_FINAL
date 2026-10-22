@@ -62,7 +62,7 @@ async def algorithms():
 
 @app.get('/optimizers')
 async def optimizers():
-    return [dict(id=key, label=value.label, description=value.description,
+    return [dict(id=key, label=value.label, description=value.description, uses_start=value.uses_start,
                  params=[param.__dict__ for param in value.params])
             for key, value in OPTIMIZERS.items()]
 

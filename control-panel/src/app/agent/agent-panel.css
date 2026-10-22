@@ -11,6 +11,13 @@ h3 { font-size: 14px; font-weight: 600; }
 .configuration { display: flex; flex-wrap: wrap; gap: 12px; border: 0; padding: 0; }
 .configuration label { display: grid; gap: 6px; font-size: 12px; }
 .configuration .algorithm { flex: 1; min-width: 230px; }
+.configuration .block { flex: 1 1 320px; display: grid; gap: 12px; align-content: start; padding: 12px 14px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--secondary); }
+.configuration h4 { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted-foreground); }
+.configuration h5 { font-size: 12px; font-weight: 600; }
+.configuration .fields { display: flex; flex-wrap: wrap; gap: 12px; }
+.configuration .subblock { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.configuration .flag { display: flex; align-items: center; gap: 8px; }
+.configuration .flag input { width: auto; }
 select, .configuration input { border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: white; color: var(--foreground); font-size: 13px; }
 .configuration input { width: 110px; }
 .configuration .full-knowledge { align-self: end; display: flex; min-height: 35px; align-items: center; }

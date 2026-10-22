@@ -371,7 +371,12 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
     async def test_optimizers_are_listed_with_their_parameters(self):
         listing = (await self.agent.get('/optimizers')).json()
         self.assertEqual({item['id'] for item in listing}, {'grid', 'random', 'hill_climbing'})
-        self.assertTrue(all(item['params'][0]['id'] == 'cost_weight' for item in listing))
+        for item in listing:
+            ids = [param['id'] for param in item['params']]
+            self.assertIn('cost_weight', ids)
+            self.assertIn('lock_heuristic', ids)
+            self.assertTrue({param['group'] for param in item['params']} >= {'Scoring importance', 'Heuristic'})
+        self.assertEqual({item['id'] for item in listing if item['uses_start']}, {'hill_climbing'})
 
     async def test_weight_and_optimizer_validation(self):
         for body in ({'weight': 0.5}, {'optimizer': 'bogus'}, {'optimizer': 'grid', 'algorithm': 'dijkstra'},

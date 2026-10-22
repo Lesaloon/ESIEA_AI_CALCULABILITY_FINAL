@@ -7,48 +7,82 @@
 
   <fieldset class="configuration" [disabled]="sim.busy() || running() || env.busy()">
     <legend class="sr-only">Run configuration</legend>
-    <label class="algorithm">Algorithm
-      <select #algorithmInput [value]="algorithm()" (change)="algorithm.set(algorithmInput.value)">
-        @for (item of sim.algorithms(); track item.id) {
-          <option [value]="item.id">{{ item.label }}</option>
-        }
-      </select>
-    </label>
-    <label>Search heuristic
-      <select #heuristicInput [disabled]="algorithm() === 'dijkstra'" [value]="algorithm() === 'dijkstra' ? 'zero' : heuristic()" (change)="heuristic.set(heuristicInput.value)">
-        <option value="zero">Zero · no estimate</option><option value="l1">L1 · Manhattan</option>
-        <option value="l2">L2 · Euclidean</option><option value="linf">L∞ · Chebyshev</option>
-        <option value="squared_l2">Squared L2</option><option value="mse">MSE</option>
-      </select>
-    </label>
-    <label>Weight w (f = g + w·h)
-      <input #weightInput type="number" min="1" max="20" step="0.1" [disabled]="algorithm() === 'dijkstra'"
-        [value]="algorithm() === 'dijkstra' ? 1 : weight()" (input)="weight.set(weightInput.valueAsNumber)">
-    </label>
-    <label>Parameter optimizer
-      <select #optimizerInput [disabled]="algorithm() === 'dijkstra'" [value]="algorithm() === 'dijkstra' ? 'none' : optimizer()"
-        (change)="setOptimizer(optimizerInput.value)">
-        <option value="none">None · use the values above</option>
-        @for (item of sim.optimizers(); track item.id) { <option [value]="item.id">{{ item.label }}</option> }
-      </select>
-    </label>
-    @if (algorithm() === 'astar' && selectedOptimizer(); as optimizer) {
-      @for (param of optimizer.params; track param.id) {
-        <label>{{ param.label }}
-          <input #paramInput type="number" [min]="param.min" [max]="param.max" [step]="param.step"
-            [value]="paramValue(param.id, param.default)"
-            (input)="setParam(param.id, paramInput.valueAsNumber)">
+    <div class="block">
+      <h4>Algorithm</h4>
+      <div class="fields">
+        <label class="algorithm">Algorithm
+          <select #algorithmInput [value]="algorithm()" (change)="algorithm.set(algorithmInput.value)">
+            @for (item of sim.algorithms(); track item.id) {
+              <option [value]="item.id">{{ item.label }}</option>
+            }
+          </select>
         </label>
-      }
+        @if (showHeuristic()) {
+          <label>{{ locked() ? 'Locked heuristic' : tuned() ? 'Starting heuristic' : 'Search heuristic' }}
+            <select #heuristicInput [value]="heuristic()" (change)="heuristic.set(heuristicInput.value)">
+              <option value="zero">Zero · no estimate</option><option value="l1">L1 · Manhattan</option>
+              <option value="l2">L2 · Euclidean</option><option value="linf">L∞ · Chebyshev</option>
+              <option value="squared_l2">Squared L2</option><option value="mse">MSE</option>
+            </select>
+          </label>
+        }
+        @if (showWeight()) {
+          <label>{{ tuned() ? 'Starting weight w' : 'Weight w (f = g + w·h)' }}
+            <input #weightInput type="number" min="1" max="20" step="0.1" [value]="weight()" (input)="weight.set(weightInput.valueAsNumber)">
+          </label>
+        }
+      </div>
+    </div>
+    @if (algorithm() === 'astar') {
+      <div class="block">
+        <h4>Parameter optimizer</h4>
+        <div class="fields">
+          <label class="algorithm">Optimizer
+            <select #optimizerInput [value]="optimizer()" (change)="setOptimizer(optimizerInput.value)">
+              <option value="none">None · use the values above</option>
+              @for (item of sim.optimizers(); track item.id) { <option [value]="item.id">{{ item.label }}</option> }
+            </select>
+          </label>
+        </div>
+        @for (group of paramGroups(); track group.name) {
+          <div class="subblock">
+            <h5>{{ group.name }}</h5>
+            <div class="fields">
+              @for (param of group.params; track param.id) {
+                @if (param.boolean) {
+                  <label class="flag">
+                    <input #flagInput type="checkbox" [checked]="paramValue(param.id, param.default) === 1"
+                      (change)="setParam(param.id, flagInput.checked ? 1 : 0)">
+                    {{ param.label }}
+                  </label>
+                } @else {
+                  <label>{{ param.label }}
+                    <input #paramInput type="number" [min]="param.min" [max]="param.max" [step]="param.step"
+                      [value]="paramValue(param.id, param.default)"
+                      (input)="setParam(param.id, paramInput.valueAsNumber)">
+                  </label>
+                }
+              }
+            </div>
+          </div>
+        }
+      </div>
     }
-    <label>Turn interval (ms)<input #speedInput type="number" min="50" max="5000" step="50" [value]="interval()" (input)="interval.set(speedInput.valueAsNumber)"></label>
-    <label>Maximum turns<input #limitInput type="number" min="1" max="10000" step="1" [value]="maxTurns()" (input)="maxTurns.set(limitInput.valueAsNumber)"></label>
+    <div class="block">
+      <h4>Execution</h4>
+      <div class="fields">
+        <label>Turn interval (ms)<input #speedInput type="number" min="50" max="5000" step="50" [value]="interval()" (input)="interval.set(speedInput.valueAsNumber)"></label>
+        <label>Maximum turns<input #limitInput type="number" min="1" max="10000" step="1" [value]="maxTurns()" (input)="maxTurns.set(limitInput.valueAsNumber)"></label>
+      </div>
+    </div>
   </fieldset>
-  @if (algorithm() === 'astar' && selectedOptimizer(); as optimizer) {
-    <p class="help">{{ optimizer.description }} It scores each (heuristic, weight) on <b>route cost, search time and search memory</b> (each relative to classic A* with L∞, weighted by the importance fields) and picks the best before the first move. The heuristic and weight above are only the hill-climbing starting point.</p>
+  @if (tuned(); as optimizer) {
+    <p class="help">{{ optimizer.description }} It scores each (heuristic, weight) on <b>route cost, search time and search memory</b> (each relative to classic A* with L∞, weighted by the importance fields) and picks the best before the first move.
+      @if (optimizer.uses_start) { It starts from the heuristic and weight above. }
+      @if (locked()) { The heuristic is locked: only the weight is tuned. }</p>
   }
   <p class="help">{{ selectedAlgorithm()?.description }} L∞ is an admissible estimate for eight-way movement. Settings apply when creating or resetting a run.</p>
-  @if (algorithm() === 'astar' && heuristic() !== 'zero' && heuristic() !== 'linf') {
+  @if (showHeuristic() && heuristic() !== 'zero' && heuristic() !== 'linf') {
     <p class="help">This heuristic can overestimate path cost with eight-way movement; A* optimality is not guaranteed.</p>
   }
   @if (configProblem(); as problem) { <p class="error" role="alert">{{ problem }}</p> }
