@@ -14,6 +14,34 @@
     <app-grid-controls />
   </fieldset>
   <app-scenario-controls />
+  <div class="saved-grids">
+    <h3>Saved grids</h3>
+    <p class="resize-help">Save this map with its start and goal in this browser, then load it again later.</p>
+    <div class="save-row">
+      <label for="saved-grid-name">Name</label>
+      <input id="saved-grid-name" #nameInput type="text" maxlength="40" autocomplete="off"
+        [value]="saveName()" [disabled]="store.busy() || store.simulation.locked()"
+        (input)="saveName.set(nameInput.value)">
+      <button hlmBtn id="save-grid" [disabled]="store.busy() || store.simulation.locked() || store.simulation.busy() || !store.grid() || !saveName().trim()"
+        (click)="saveGrid()">Save</button>
+    </div>
+    @if (store.savedGrids().length) {
+      <ul>
+        @for (item of store.savedGrids(); track item.name; let index = $index) {
+          <li>
+            <span class="saved-name">{{ item.name }}</span>
+            <span class="saved-size">{{ item.weights.length }} × {{ item.weights[0].length }}</span>
+            <button hlmBtn variant="outline" [id]="'load-saved-' + index" [disabled]="store.busy() || store.simulation.locked() || store.simulation.busy()"
+              (click)="store.loadSaved(item.name)">Load</button>
+            <button hlmBtn variant="outline" [disabled]="store.busy() || store.simulation.locked() || store.simulation.busy()"
+              (click)="store.deleteSaved(item.name)">Delete</button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="resize-help">No saved grid yet.</p>
+    }
+  </div>
   <app-environment-grid />
 </section>
 

@@ -30,6 +30,15 @@ export class EnvironmentApi {
     return this.http.post<GridRender>(`${this.url}/grid/resize`, { size });
   }
 
+  importGrid(weights: (number | null)[][]) {
+    return this.http.post<GridRender>(`${this.url}/grid/import`, { weights });
+  }
+
+  configure(start: { x: number; y: number } | null, goal: { x: number; y: number } | null) {
+    return this.http.post<{ start: { x: number; y: number } | null; goal: { x: number; y: number } | null; locked: boolean }>(
+      `${this.url}/scenario`, { start, goal });
+  }
+
   setWeight(x: number, y: number, weight: number) {
     return this.http.post<GridRender>(`${this.url}/grid/weights/${x}/${y}`, { weight });
   }

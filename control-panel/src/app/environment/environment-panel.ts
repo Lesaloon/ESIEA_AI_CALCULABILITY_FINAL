@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { EnvironmentStore } from './environment-store';
 import { GridControls } from './grid-controls';
@@ -19,4 +19,10 @@ import { ScenarioControls } from '../scenario-controls';
 })
 export class EnvironmentPanel {
   readonly store = inject(EnvironmentStore);
+  readonly saveName = signal('');
+
+  saveGrid() {
+    this.store.saveCurrent(this.saveName());
+    if (!this.store.error()) this.saveName.set('');
+  }
 }

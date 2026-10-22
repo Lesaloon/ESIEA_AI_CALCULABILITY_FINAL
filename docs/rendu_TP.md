@@ -17,6 +17,8 @@ plafond = poids maximum × (nombre de cases franchissables − 1), ce qui nous p
 
 Lors de notre premier test on obtient le meilleur score pour w = 171. Cependant on constate des fluctuations importantes entre les runs, que l'on peutpeut-être expliquer par le bruit lié au calcul de la durée.
 
+Ensuite pour essayer de limiter le bruit lié à la durée, on créé un nouveal algorithme qui se base sur un score pondéré (10 fois le cout pour 1 fois la durée). Lerésultat est plus stable avec un meilleur w toujours à 1 pour cette grille.
+
 - [x] Prendre la solution trouvee et la tester sur une configuration variable. Qu'est-ce que ca donne? Comment les resultats variant? Pourquoi?
 
 - [x] Quelles solutions proposez-vous pour gerer la recherche de parametres (a, b, c, w, h) lorsque la configuration change?

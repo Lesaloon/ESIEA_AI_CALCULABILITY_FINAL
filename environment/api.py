@@ -1,6 +1,7 @@
 """FastAPI server for the simulation environment."""
 
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +52,10 @@ class GridWeightStroke(GridWeight):
 class GridObstacleStroke(BaseModel):
     obstacle: bool = Field(strict=True)
     cells: list[GridCoordinate] = Field(min_length=1, max_length=400)
+
+
+class GridImport(BaseModel):
+    weights: list[list[Any]] = Field(min_length=1, max_length=20)
 
 
 @asynccontextmanager
@@ -231,3 +236,51 @@ async def resize_grid(body: GridResize, request: Request) -> GridRender:
     request.app.state.grid = Grid(width=body.size, height=body.size)
     request.app.state.simulation.configure(None, None)
     return await render_grid(request)
+
+
+@app.post("/grid/import", response_model=GridRender)
+async def import_grid(body: GridImport, request: Request) -> GridRender:
+    """Replace the map with a saved square. Null weights are obstacles."""
+    grid = _grid_from_weights(body.weights)
+    simulation = request.app.state.simulation
+    previous = request.app.state.grid
+    start, goal = simulation.start, simulation.goal
+    if previous.width != grid.width or previous.height != grid.height:
+        start = goal = None
+    else:
+        if start is not None and not grid.is_walkable(start):
+            start = None
+        if goal is not None and not grid.is_walkable(goal):
+            goal = None
+    request.app.state.grid = grid
+    simulation.configure(start, goal)
+    return await render_grid(request)
+
+
+def _grid_from_weights(weights):
+    height = len(weights)
+    if not 3 <= height <= 20 or any(not isinstance(row, list) or len(row) != height for row in weights):
+        raise HTTPException(422, 'The map must be a square between 3 and 20')
+    if not any(weight is not None for row in weights for weight in row):
+        raise HTTPException(422, 'The map has no walkable cell')
+    parsed = [[None if weight is None else _whole_weight(weight) for weight in row] for row in weights]
+    grid = Grid(width=height, height=height)
+    for y, row in enumerate(parsed):
+        for x, weight in enumerate(row):
+            if weight is None:
+                grid.remove_node((x, y))
+            elif weight != 1:
+                grid.set_weight((x, y), weight)
+    return grid
+
+
+def _whole_weight(weight):
+    if type(weight) is int:
+        value = weight
+    elif type(weight) is float and weight.is_integer():
+        value = int(weight)
+    else:
+        raise HTTPException(422, 'Weights must be integers from 1 to 9')
+    if not 1 <= value <= 9:
+        raise HTTPException(422, 'Weights must be integers from 1 to 9')
+    return value

@@ -34,12 +34,56 @@ export class EnvironmentStore {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
+  readonly savedGrids = signal<SavedGrid[]>([]);
   readonly obstacles = computed(() =>
     this.grid()?.cells.flat().filter(cell => cell === 'obstacle').length ?? 0,
   );
 
   constructor() {
+    this.savedGrids.set(this.readSaved());
     void this.refresh();
+  }
+
+  saveCurrent(name: string) {
+    const grid = this.grid();
+    const trimmed = name.trim();
+    if (!grid) return;
+    if (!trimmed || trimmed.length > 40) {
+      this.error.set('Use a name of 1 to 40 characters.');
+      this.message.set('');
+      return;
+    }
+    const { start, goal } = this.simulation.scenario();
+    const entry: SavedGrid = {
+      name: trimmed,
+      weights: grid.weights.map(row => [...row]),
+      start: start ? { x: start.x, y: start.y } : null,
+      goal: goal ? { x: goal.x, y: goal.y } : null,
+    };
+    const next = [entry, ...this.savedGrids().filter(item => item.name !== trimmed)];
+    if (!this.persist(next)) return;
+    this.message.set(`Saved "${trimmed}".`);
+  }
+
+  async loadSaved(name: string) {
+    const saved = this.savedGrids().find(item => item.name === name);
+    if (!saved) return;
+    const walkable = (point: { x: number; y: number } | null) =>
+      !!point && saved.weights[point.y]?.[point.x] != null;
+    await this.run(async () => {
+      this.setGrid(await firstValueFrom(this.api.importGrid(saved.weights).pipe(timeout(8000))));
+      await firstValueFrom(this.api.configure(
+        walkable(saved.start) ? saved.start : null,
+        walkable(saved.goal) ? saved.goal : null,
+      ).pipe(timeout(8000)));
+      await this.simulation.refresh();
+      this.message.set(`Loaded "${name}".`);
+    });
+  }
+
+  deleteSaved(name: string) {
+    if (!this.persist(this.savedGrids().filter(item => item.name !== name))) return;
+    this.message.set(`Deleted "${name}".`);
   }
 
   async refresh() {
@@ -208,6 +252,28 @@ export class EnvironmentStore {
     });
   }
 
+  private persist(grids: SavedGrid[]) {
+    try {
+      localStorage.setItem(SAVED_GRIDS_KEY, JSON.stringify(grids));
+    } catch {
+      this.error.set('Could not store the grid in this browser.');
+      return false;
+    }
+    this.savedGrids.set(grids);
+    this.error.set('');
+    return true;
+  }
+
+  private readSaved(): SavedGrid[] {
+    try {
+      const raw = localStorage.getItem(SAVED_GRIDS_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter(isSavedGrid) : [];
+    } catch {
+      return [];
+    }
+  }
+
   private setGrid(grid: GridRender) {
     this.grid.set(grid);
     this.selectedSize.set(grid.width);
@@ -229,4 +295,32 @@ export class EnvironmentStore {
       this.busy.set(false);
     }
   }
+}
+
+const SAVED_GRIDS_KEY = 'ai-calculability.saved-grids';
+
+interface SavedEndpoint { x: number; y: number; }
+
+interface SavedGrid {
+  name: string;
+  weights: (number | null)[][];
+  start: SavedEndpoint | null;
+  goal: SavedEndpoint | null;
+}
+
+function isSavedGrid(value: unknown): value is SavedGrid {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as SavedGrid;
+  return typeof item.name === 'string' && item.name.trim().length > 0 && item.name.length <= 40
+    && Array.isArray(item.weights) && item.weights.length >= 3
+    && item.weights.every(row => Array.isArray(row) && row.length === item.weights.length
+      && row.every(weight => weight === null || (typeof weight === 'number' && Number.isInteger(weight) && weight >= 1 && weight <= 9)))
+    && isEndpoint(item.start) && isEndpoint(item.goal);
+}
+
+function isEndpoint(value: unknown): value is SavedEndpoint | null {
+  if (value === null) return true;
+  if (!value || typeof value !== 'object') return false;
+  const point = value as SavedEndpoint;
+  return Number.isInteger(point.x) && Number.isInteger(point.y);
 }

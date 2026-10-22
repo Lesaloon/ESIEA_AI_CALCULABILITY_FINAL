@@ -120,5 +120,60 @@ class ObstacleStrokeApiTests(unittest.TestCase):
             self.assertEqual(self.client.get('/grid/render').json(), before)
 
 
+class GridImportTests(unittest.TestCase):
+    def setUp(self):
+        self.client = self.enterContext(TestClient(app))
+
+    def test_import_replaces_the_map_and_clears_endpoints_when_the_size_changes(self):
+        self.client.post('/scenario', json={'start': {'x': 0, 'y': 0}, 'goal': {'x': 9, 'y': 9}})
+        weights = [[1, None, 4], [1, 1, 1], [2, 1, 9]]
+        response = self.client.post('/grid/import', json={'weights': weights})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['weights'], weights)
+        self.assertEqual(response.json()['cells'][0][1], 'obstacle')
+        scenario = self.client.get('/scenario').json()
+        self.assertIsNone(scenario['start'])
+        self.assertIsNone(scenario['goal'])
+
+    def test_import_keeps_walkable_endpoints_on_the_same_size(self):
+        self.client.post('/grid/resize', json={'size': 3})
+        self.client.post('/scenario', json={'start': {'x': 0, 'y': 0}, 'goal': {'x': 2, 'y': 2}})
+        weights = [[1, None, 1], [1, 5, 1], [1, 1, 1]]
+        response = self.client.post('/grid/import', json={'weights': weights})
+        self.assertEqual(response.status_code, 200)
+        scenario = self.client.get('/scenario').json()
+        self.assertEqual(scenario['start'], {'x': 0, 'y': 0})
+        self.assertEqual(scenario['goal'], {'x': 2, 'y': 2})
+
+    def test_import_drops_an_endpoint_that_lands_on_an_obstacle(self):
+        self.client.post('/grid/resize', json={'size': 3})
+        self.client.post('/scenario', json={'start': {'x': 0, 'y': 0}, 'goal': {'x': 2, 'y': 2}})
+        self.client.post('/grid/import', json={'weights': [[None, 1, 1], [1, 1, 1], [1, 1, 1]]})
+        scenario = self.client.get('/scenario').json()
+        self.assertIsNone(scenario['start'])
+        self.assertEqual(scenario['goal'], {'x': 2, 'y': 2})
+
+    def test_import_accepts_whole_number_floats(self):
+        weights = [[1.0, 3.0, 1.0], [1.0, None, 1.0], [1.0, 1.0, 9.0]]
+        response = self.client.post('/grid/import', json={'weights': weights})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['weights'], [[1, 3, 1], [1, None, 1], [1, 1, 9]])
+
+    def test_invalid_import_does_not_change_the_grid(self):
+        before = self.client.get('/grid/render').json()
+        maps = (
+            [[1, 1], [1, 1]],
+            [[1, 1, 1], [1, 1], [1, 1, 1]],
+            [[None, None, None], [None, None, None], [None, None, None]],
+            [[1, 10, 1], [1, 1, 1], [1, 1, 1]],
+            [[1, 1.5, 1], [1, 1, 1], [1, 1, 1]],
+            [[1, True, 1], [1, 1, 1], [1, 1, 1]],
+        )
+        for weights in maps:
+            with self.subTest(weights=weights):
+                self.assertEqual(self.client.post('/grid/import', json={'weights': weights}).status_code, 422)
+                self.assertEqual(self.client.get('/grid/render').json(), before)
+
+
 if __name__ == '__main__':
     unittest.main()
