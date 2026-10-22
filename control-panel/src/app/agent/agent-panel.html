@@ -68,7 +68,7 @@
         @if (randomReport(); as report) { <ng-container *ngTemplateOutlet="searchResults; context: { $implicit: report }" /> }
       } @else {
         <h3 id="main-algo-title">Recherche 1</h3>
-        <p class="help">Search w from 1 to the map ceiling: 100 grid values, then a hill climb from each of the 10 best scores. The search does not move the agent. Lower scores are better. Click a point to keep that w for the next run.</p>
+        <p class="help">Search w from 1 to the map ceiling: 100 grid values, then a hill climb from each of the 10 best scores, with a step of 0.1. The search does not move the agent. Lower scores are better. Click a point to keep that w for the next run.</p>
         <div class="actions">
           <button hlmBtn id="main-algo-compare" [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal"
             (click)="runMainAlgo()">Compare</button>
@@ -84,8 +84,8 @@
                 <line class="best-line" [attr.x1]="chart.pad.left" [attr.x2]="chart.width - chart.pad.right" [attr.y1]="chart.bestY" [attr.y2]="chart.bestY" />
                 <polyline [attr.points]="chart.line" />
                 @for (point of chart.points; track $index) {
-                  <circle [class.best]="point.best" [attr.cx]="point.cx" [attr.cy]="point.cy" [attr.r]="point.best ? 6 : 3.5" (click)="weight.set(point.w)">
-                    <title>w = {{ point.w | number:'1.0-3' }}, score = {{ point.score | number:'1.0-3' }}</title>
+                  <circle [class.climb]="point.source === 'climb'" [class.best]="point.best" [attr.cx]="point.cx" [attr.cy]="point.cy" [attr.r]="point.best ? 6 : 3.5" (click)="weight.set(point.w)">
+                    <title>{{ point.source === 'climb' ? 'Hill climbing' : 'Grid search' }} · w = {{ point.w | number:'1.0-3' }}, score = {{ point.score | number:'1.0-3' }}</title>
                   </circle>
                 }
                 <text class="best-label" [attr.x]="chart.label.x" [attr.y]="chart.label.y" [attr.text-anchor]="chart.label.anchor">Best</text>
@@ -95,7 +95,7 @@
                 <text [attr.x]="chart.width - chart.pad.right" [attr.y]="chart.height - 18" text-anchor="end">{{ chart.maxW }}</text>
                 <text [attr.x]="chart.width - chart.pad.right" [attr.y]="chart.height - 4" text-anchor="end">w</text>
               </svg>
-              <p class="chart-legend"><span><i class="measured"></i>Measured score</span><span><i class="best"></i>Best score</span></p>
+              <p class="chart-legend"><span><i class="grid"></i>Grid search</span><span><i class="climb"></i>Hill climbing</span><span><i class="best"></i>Best score</span></p>
             </figure>
           } @else {
             <p class="help">No route for these weights.</p>

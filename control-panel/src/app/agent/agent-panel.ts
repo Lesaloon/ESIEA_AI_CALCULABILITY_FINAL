@@ -140,6 +140,7 @@ export class AgentPanel {
     const points = scored.map(trial => ({
       w: trial.w,
       score: trial.score as number,
+      source: trial.source,
       cx: xOf(trial.w),
       cy: yOf(trial.score as number),
       best: trial.score === report.best.score && trial.w === report.best.w,
@@ -150,7 +151,11 @@ export class AgentPanel {
     const marked = points.find(point => point.best) ?? points[0];
     const anchor = marked.cx > width - 80 ? 'end' : 'start';
     return {
-      width, height, pad, line, points: [...points.filter(point => !point.best), ...points.filter(point => point.best)],
+      width, height, pad, line, points: [
+        ...points.filter(point => !point.best && point.source === 'grid'),
+        ...points.filter(point => !point.best && point.source === 'climb'),
+        ...points.filter(point => point.best),
+      ],
       minW: this.formatChart(minW), maxW: this.formatChart(maxW),
       minS: this.formatChart(minS), maxS: this.formatChart(maxS),
       bestY: yOf(report.best.score),

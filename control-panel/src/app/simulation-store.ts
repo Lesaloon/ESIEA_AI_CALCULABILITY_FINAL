@@ -32,7 +32,8 @@ export interface RandomSearchRequest {
   heuristic: string; low: number; high: number; count: number;
   start: Position; goal: Position; weights: (number | null)[][];
 }
-export interface MainAlgoReport { ceiling: number; best: GridSearchTrial; trials: GridSearchTrial[]; }
+export interface MainAlgoTrial extends GridSearchTrial { source: 'grid' | 'climb'; }
+export interface MainAlgoReport { ceiling: number; best: MainAlgoTrial; trials: MainAlgoTrial[]; }
 export interface MainAlgoRequest {
   heuristic: string; start: Position; goal: Position; weights: (number | null)[][];
 }

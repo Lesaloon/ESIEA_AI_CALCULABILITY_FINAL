@@ -49,6 +49,8 @@ class MainAlgo1Tests(TestCase):
             [climb['trials'][0]['w'] for climb in report['climbs']],
             [seed['w'] for seed in seeds],
         )
+        climb = report['climbs'][0]['trials']
+        self.assertAlmostEqual(climb[1]['w'] - climb[0]['w'], 0.1)
         self.assertIn(report['best']['w'], [climb['best']['w'] for climb in report['climbs']])
 
     def test_single_cell_climbs_the_only_weight(self):

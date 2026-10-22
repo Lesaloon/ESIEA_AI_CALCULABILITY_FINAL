@@ -27,8 +27,9 @@ def weight_ceiling(weights):
 def main_algo_1(weights, start, target, heuristic='l1'):
     """Search [1, ceiling] with 100 weights, then hill-climb the 10 best.
 
-    The ceiling comes from ``weight_ceiling``. The grid step is the spacing
-    of those 100 values, and each hill climb uses that same step. The kept
+    The ceiling comes from ``weight_ceiling``. The grid uses 100 values
+    from 1 to that ceiling. Each hill climb starts from one of the ten best
+    scores and moves by 0.1, so it looks between the grid values. The kept
     result is the hill climb whose final w has the best cost/duration score
     among the ten.
     """
@@ -38,7 +39,7 @@ def main_algo_1(weights, start, target, heuristic='l1'):
     grid = grid_search(graph, start, target, heuristic, 1, ceiling, step)
     seeds = sorted(grid['trials'], key=lambda trial: (trial['score'], trial['w']))[:10]
     climbs = [
-        hill_climbing(graph, start, target, heuristic, seed['w'], step)
+        hill_climbing(graph, start, target, heuristic, seed['w'], 0.1)
         for seed in seeds
     ]
     finals = [dict(climb['best']) for climb in climbs]

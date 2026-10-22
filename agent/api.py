@@ -128,8 +128,11 @@ def _finite(value):
 
 
 def _public_trial(trial):
-    return dict(w=trial['w'], cost=_finite(trial['cost']), duration=trial['duration'],
-                expansions=trial['expansions'], score=_finite(trial['score']))
+    public = dict(w=trial['w'], cost=_finite(trial['cost']), duration=trial['duration'],
+                  expansions=trial['expansions'], score=_finite(trial['score']))
+    if 'source' in trial:
+        public['source'] = trial['source']
+    return public
 
 
 @app.post('/grid-search')
@@ -156,9 +159,9 @@ async def run_main_algo(body: MainAlgoConfiguration):
         report = main_algo_1(body.weights, (body.start.x, body.start.y), (body.goal.x, body.goal.y), body.heuristic)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    measured = [_measured(trial) for trial in report['grid']['trials']]
+    measured = [_measured(trial, 'grid') for trial in report['grid']['trials']]
     for climb in report['climbs']:
-        measured.extend(_measured(trial) for trial in climb['trials'])
+        measured.extend(_measured(trial, 'climb') for trial in climb['trials'])
     best_cost = min(trial['cost'] for trial in measured)
     best_duration = min(trial['duration'] for trial in measured)
     for trial in measured:
@@ -167,8 +170,9 @@ async def run_main_algo(body: MainAlgoConfiguration):
     return dict(ceiling=report['ceiling'], best=_public_trial(best), trials=[_public_trial(trial) for trial in measured])
 
 
-def _measured(trial):
-    return dict(w=trial['w'], cost=trial['cost'], duration=trial['duration'], expansions=trial['expansions'])
+def _measured(trial, source):
+    return dict(w=trial['w'], cost=trial['cost'], duration=trial['duration'],
+                expansions=trial['expansions'], source=source)
 
 
 def _publish_search(body, search):
