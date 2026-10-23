@@ -79,7 +79,7 @@
         }
       } @else {
         <h3 id="main-algo-2-title">Recherche 2</h3>
-        <p class="help">Same search as Recherche 1. The score is 10 times the relative cost plus the relative duration. The search does not move the agent. Lower scores are better. Click a point to keep that w for the next run.</p>
+        <p class="help">Same search as Recherche 1. The score is a·cost/cost_ref + b·duration/duration_ref + c·memory/memory_ref. The reference is one A* search at w = 1 with the selected heuristic. a = 1, b = 1 and c = 0, so memory is measured but does not change the score. The search does not move the agent. Lower scores are better. Click a point to keep that w for the next run.</p>
         <div class="actions">
           <button hlmBtn id="main-algo-2-compare" [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal"
             (click)="runMainAlgo2()">Compare</button>
@@ -90,6 +90,9 @@
       }
       <ng-template #algoResults let-report let-chart="chart">
         <p class="help">Map ceiling: {{ report.ceiling | number:'1.0-2' }}. {{ report.trials.length }} scores measured.</p>
+        @if (report.reference && report.importance) {
+          <p class="help">Reference A* at w = {{ report.reference.w | number:'1.0-0' }}: cost {{ report.reference.cost === null ? '—' : (report.reference.cost | number:'1.0-2') }}, duration {{ report.reference.duration * 1000 | number:'1.0-3' }} ms. Score = {{ report.importance.a | number:'1.0-1' }}·cost/cost_ref + {{ report.importance.b | number:'1.0-1' }}·duration/duration_ref + {{ report.importance.c | number:'1.0-1' }}·memory/memory_ref.</p>
+        }
         @if (chart) {
           <figure class="score-chart">
             <figcaption class="sr-only">Score against w. Best score at w = {{ report.best.w | number:'1.0-3' }}.</figcaption>

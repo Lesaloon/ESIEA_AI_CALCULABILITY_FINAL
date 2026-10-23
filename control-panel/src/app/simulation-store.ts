@@ -33,7 +33,11 @@ export interface RandomSearchRequest {
   start: Position; goal: Position; weights: (number | null)[][];
 }
 export interface MainAlgoTrial extends GridSearchTrial { source: 'grid' | 'climb'; }
-export interface MainAlgoReport { ceiling: number; best: MainAlgoTrial; trials: MainAlgoTrial[]; }
+export interface ScoreReference { w: number; cost: number | null; duration: number; memory: number; }
+export interface MainAlgoReport {
+  ceiling: number; best: MainAlgoTrial; trials: MainAlgoTrial[];
+  reference?: ScoreReference; importance?: { a: number; b: number; c: number };
+}
 export interface MainAlgoRequest {
   heuristic: string; start: Position; goal: Position; weights: (number | null)[][];
 }

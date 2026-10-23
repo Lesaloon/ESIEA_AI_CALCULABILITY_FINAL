@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from math import inf, isfinite
 
 from agent.algorithms.global_w_search import global_w_search
-from agent.algorithms.grid_search import _score, graph_from_weights, grid_search, weighted_score
+from agent.algorithms.grid_search import _score, graph_from_weights, grid_search
 from agent.algorithms.main_algo_1 import main_algo_1
 from agent.algorithms.main_algo_2 import main_algo_2
 from agent.algorithms.random_search import random_search
@@ -57,6 +57,9 @@ class MainAlgoConfiguration(BaseModel):
     start: GridPoint
     goal: GridPoint
     weights: list[list[float | None]] = Field(min_length=1, max_length=40)
+    a: float = Field(default=1.0, ge=0)
+    b: float = Field(default=1.0, ge=0)
+    c: float = Field(default=0.0, ge=0)
 
 
 class GlobalSearchConfiguration(BaseModel):
@@ -167,7 +170,7 @@ async def run_main_algo(body: MainAlgoConfiguration):
 
 @app.post('/main-algo-2')
 async def run_main_algo_2(body: MainAlgoConfiguration):
-    return _publish_main(body, main_algo_2, weighted_score)
+    return _publish_main(body, main_algo_2, None, (body.a, body.b, body.c))
 
 
 @app.post('/global-w-search')
@@ -196,29 +199,42 @@ def _global_point(point):
                 duration=point['duration'], expansions=point['expansions'])
 
 
-def _publish_main(body, algorithm, score):
+def _publish_main(body, algorithm, score, arguments=()):
     if body.heuristic not in HEURISTICS:
         raise HTTPException(422, 'Unknown heuristic')
     try:
         _require_walkable(body.weights, body.start, 'Start')
         _require_walkable(body.weights, body.goal, 'Goal')
-        report = algorithm(body.weights, (body.start.x, body.start.y), (body.goal.x, body.goal.y), body.heuristic)
+        report = algorithm(body.weights, (body.start.x, body.start.y), (body.goal.x, body.goal.y), body.heuristic, *arguments)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     measured = [_measured(trial, 'grid') for trial in report['grid']['trials']]
     for climb in report['climbs']:
         measured.extend(_measured(trial, 'climb') for trial in climb['trials'])
-    best_cost = min(trial['cost'] for trial in measured)
-    best_duration = min(trial['duration'] for trial in measured)
-    for trial in measured:
-        trial['score'] = score(trial, best_cost, best_duration)
+    if score is not None:
+        best_cost = min(trial['cost'] for trial in measured)
+        best_duration = min(trial['duration'] for trial in measured)
+        for trial in measured:
+            trial['score'] = score(trial, best_cost, best_duration)
     best = min(measured, key=lambda trial: (trial['score'], trial['w']))
-    return dict(ceiling=report['ceiling'], best=_public_trial(best), trials=[_public_trial(trial) for trial in measured])
+    published = dict(ceiling=report['ceiling'], best=_public_trial(best), trials=[_public_trial(trial) for trial in measured])
+    if 'reference' in report:
+        published['reference'] = _public_reference(report['reference'])
+        published['importance'] = report['importance']
+    return published
+
+
+def _public_reference(reference):
+    return dict(w=reference['w'], cost=_finite(reference['cost']), duration=reference['duration'],
+                memory=reference['memory'])
 
 
 def _measured(trial, source):
-    return dict(w=trial['w'], cost=trial['cost'], duration=trial['duration'],
-                expansions=trial['expansions'], source=source)
+    measured = dict(w=trial['w'], cost=trial['cost'], duration=trial['duration'],
+                    expansions=trial['expansions'], source=source)
+    if 'score' in trial:
+        measured['score'] = trial['score']
+    return measured
 
 
 def _publish_search(body, search):

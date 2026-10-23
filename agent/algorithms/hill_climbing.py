@@ -3,11 +3,11 @@
 from math import isfinite
 from time import perf_counter
 
-from agent.algorithms.grid_search import _path_cost, _score
+from agent.algorithms.grid_search import _path_cost, _score, run_trial
 from agent.algorithms.weighted_astar import WeightedAStar
 
 
-def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, score=None):
+def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, score=None, memory=False):
     """Walk from w by `step` until the current value is a local minimum.
 
     Neighbors are w - step and w + step. The neighbor below 1 is ignored.
@@ -15,6 +15,7 @@ def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, 
     The walk moves to the best neighbor when that score is strictly better,
     and stops when neither neighbor improves it. `limit` is the maximum
     number of moves. `score` replaces the default formula when set.
+    `memory` records the peak traced memory of each run.
     """
     w, step, limit = _parameters(w, step, limit)
     score = _score if score is None else score
@@ -23,17 +24,20 @@ def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, 
     def evaluate(index):
         if index not in trials_by_index:
             weight = w + index * step
-            algorithm = WeightedAStar(heuristic, weight)
-            started = perf_counter()
-            result = algorithm.search(graph, start, target)
-            duration = perf_counter() - started
-            trials_by_index[index] = dict(
-                w=weight,
-                cost=_path_cost(graph, result.path),
-                duration=duration,
-                expansions=len(result.trace.expanded),
-                path=result.path,
-            )
+            if memory:
+                trials_by_index[index] = run_trial(graph, start, target, heuristic, weight, True)
+            else:
+                algorithm = WeightedAStar(heuristic, weight)
+                started = perf_counter()
+                result = algorithm.search(graph, start, target)
+                duration = perf_counter() - started
+                trials_by_index[index] = dict(
+                    w=weight,
+                    cost=_path_cost(graph, result.path),
+                    duration=duration,
+                    expansions=len(result.trace.expanded),
+                    path=result.path,
+                )
         return trials_by_index[index]
 
     current = 0

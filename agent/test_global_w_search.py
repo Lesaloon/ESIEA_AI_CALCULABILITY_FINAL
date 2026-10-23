@@ -4,7 +4,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from agent.algorithms.global_w_search import global_w_search
-from agent.algorithms.grid_search import weighted_score
+from agent.algorithms.grid_search import reference_score
 
 
 def steady_clock():
@@ -19,7 +19,7 @@ def steady_clock():
 
 class GlobalWSearchTests(TestCase):
     def test_same_seed_draws_the_same_maps_and_weights(self):
-        with patch('agent.algorithms.global_w_search.perf_counter', steady_clock()):
+        with patch('agent.algorithms.grid_search.perf_counter', steady_clock()):
             first = global_w_search(3, 6, 11, 8, seed=7)
             second = global_w_search(3, 6, 11, 8, seed=7)
         self.assertEqual(first['seed'], 7)
@@ -39,16 +39,15 @@ class GlobalWSearchTests(TestCase):
             self.assertIsNotNone(item['weights'][5][5])
             self.assertEqual(item['obstacles'], 4)
             self.assertEqual(len(item['trials']), 8)
-            best_cost = min(trial['cost'] for trial in item['trials'])
-            best_duration = min(trial['duration'] for trial in item['trials'])
+            self.assertEqual(item['reference']['w'], 1.0)
             for trial in item['trials']:
-                self.assertEqual(trial['score'], weighted_score(trial, best_cost, best_duration))
+                self.assertEqual(trial['score'], reference_score(trial, item['reference']))
         best = min(first['curve'], key=lambda point: (point['score'], point['w']))
         self.assertEqual(first['best']['w'], best['w'])
         self.assertEqual(first['wins'], sum(item['best']['w'] == best['w'] for item in first['maps']))
 
     def test_obstacle_percentage_rounds_to_a_share_of_the_cells(self):
-        with patch('agent.algorithms.global_w_search.perf_counter', steady_clock()):
+        with patch('agent.algorithms.grid_search.perf_counter', steady_clock()):
             report = global_w_search(20, 10, 8, 5, seed=3)
             half = global_w_search(1, 10, 50, 5, seed=3)
         self.assertEqual(len(report['maps']), 20)

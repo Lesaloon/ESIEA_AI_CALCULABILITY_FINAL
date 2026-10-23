@@ -1,11 +1,9 @@
 """Search one weighted A* w that scores well on several random maps."""
 
 from random import Random
-from time import perf_counter
 
-from agent.algorithms.grid_search import _path_cost, graph_from_weights, weighted_score
+from agent.algorithms.grid_search import graph_from_weights, reference_score, run_trial
 from agent.algorithms.main_algo_1 import weight_ceiling
-from agent.algorithms.weighted_astar import WeightedAStar
 
 
 def global_w_search(count, size, obstacle_percent, samples, heuristic='l1', seed=None):
@@ -14,9 +12,8 @@ def global_w_search(count, size, obstacle_percent, samples, heuristic='l1', seed
     Each map is a square with random weights from 1 to 9. Obstacles are a
     percentage of its cells, rounded to the nearest count. The start and the
     goal stay at opposite corners and remain connected. Every map is scored
-    with ten times the relative cost plus the relative duration, the same
-    score as Recherche 2. The global score of a w is the average of those
-    scores. Lower is better.
+    against its own A* reference at w = 1, with the same formula as Recherche 2.
+    The global score of a w is the average of those scores. Lower is better.
     """
     count, size, obstacles, samples = _parameters(count, size, obstacle_percent, samples)
     if seed is None:
@@ -99,21 +96,10 @@ def _candidates(ceiling, samples):
 
 def _measure(weights, start, goal, heuristic, candidates):
     graph = graph_from_weights(weights)
-    trials = []
-    for w in candidates:
-        algorithm = WeightedAStar(heuristic, w)
-        started = perf_counter()
-        result = algorithm.search(graph, start, goal)
-        trials.append(dict(
-            w=w,
-            cost=_path_cost(graph, result.path),
-            duration=perf_counter() - started,
-            expansions=len(result.trace.expanded),
-        ))
-    best_cost = min(trial['cost'] for trial in trials)
-    best_duration = min(trial['duration'] for trial in trials)
+    reference = run_trial(graph, start, goal, heuristic, 1.0, memory=True)
+    trials = [run_trial(graph, start, goal, heuristic, w, memory=True) for w in candidates]
     for trial in trials:
-        trial['score'] = weighted_score(trial, best_cost, best_duration)
+        trial['score'] = reference_score(trial, reference)
     best = min(trials, key=lambda trial: (trial['score'], trial['w']))
     return dict(
         weights=weights,
@@ -123,4 +109,5 @@ def _measure(weights, start, goal, heuristic, candidates):
         obstacles=sum(weight is None for row in weights for weight in row),
         best=best,
         trials=trials,
+        reference=reference,
     )
