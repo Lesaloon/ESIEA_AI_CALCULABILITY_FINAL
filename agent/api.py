@@ -2,17 +2,21 @@
 
 from contextlib import asynccontextmanager
 import grpc
+import csv
+import io
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 from agent.environment_client import EnvironmentClient
 from agent.registry import ALGORITHMS
 from agent.runner import Runner, RunnerError
+from agent.experiments import ExperimentConfiguration, ExperimentManager, ScoreWeights
 
 
 class RunConfiguration(BaseModel):
     algorithm: str = 'astar'
     heuristic: str = 'l1'
+    heuristic_weight: float = Field(default=1, ge=0, le=1000, allow_inf_nan=False)
     interval_ms: int = Field(default=300, ge=50, le=5000, strict=True)
     max_turns: int = Field(default=1000, ge=1, le=10000, strict=True)
 
@@ -21,9 +25,11 @@ class RunConfiguration(BaseModel):
 async def lifespan(app):
     client = EnvironmentClient()
     app.state.runner = Runner(client)
+    app.state.experiments = ExperimentManager()
     try:
         yield
     finally:
+        await app.state.experiments.cancel()
         await app.state.runner.pause()
         try:
             await app.state.runner.stop()
@@ -101,3 +107,51 @@ async def pause(request: Request):
 @app.post('/stop')
 async def stop(request: Request):
     return await request.app.state.runner.stop()
+
+
+@app.get('/experiments')
+async def experiment_state(request: Request):
+    return request.app.state.experiments.snapshot()
+
+
+@app.post('/experiments')
+async def start_experiment(body: ExperimentConfiguration, request: Request):
+    try:
+        return await request.app.state.experiments.start(body, request.app.state.runner.client)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.post('/experiments/cancel')
+async def cancel_experiment(request: Request):
+    return await request.app.state.experiments.cancel()
+
+
+@app.post('/experiments/scoring')
+async def score_experiment(body: ScoreWeights, request: Request):
+    try:
+        return request.app.state.experiments.rescore(body)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get('/experiments/export')
+async def export_experiment(request: Request, format: str = 'json'):
+    job = request.app.state.experiments.snapshot(details=True)
+    if job is None:
+        raise HTTPException(404, 'No experiment available')
+    headers = {'Content-Disposition': f'attachment; filename="experiment-{job["id"]}.{format}"'}
+    if format == 'json':
+        return JSONResponse(job, headers=headers)
+    if format != 'csv':
+        raise HTTPException(422, 'Use json or csv')
+    output = io.StringIO()
+    fields = ['method', 'trial', 'algorithm', 'heuristic', 'heuristic_weight', 'map_index',
+              'success', 'cost', 'length', 'expanded', 'time_ms', 'memory_kib', 'gap_percent',
+              'score_time', 'score_memory', 'score_quality', 'score_expanded', 'score', 'benchmark_ms', 'worker_pid',
+              'time_mean_raw_ms', 'time_samples_ms', 'time_used_samples_ms', 'time_outlier_indices',
+              'time_std_ms', 'time_min_ms', 'time_max_ms', 'timing_runs', 'timing_outliers']
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(job['evaluations'])
+    return Response(output.getvalue(), media_type='text/csv', headers=headers)

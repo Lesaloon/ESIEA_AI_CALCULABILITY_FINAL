@@ -58,7 +58,13 @@ message GridSnapshot {
 }
 message EventsRequest { string run_id = 1; int32 after_sequence = 2; }
 message Events { repeated TurnEvent events = 1; }
+message ScenarioSnapshot {
+  GridSnapshot grid = 1;
+  Position start = 2;
+  Position goal = 3;
+}
 service Environment {
+  rpc GetScenarioSnapshot(RunRequest) returns (ScenarioSnapshot);
   rpc StartRun(StartRequest) returns (RunState);
   rpc Observe(RunRequest) returns (Observation);
   rpc ApplyAction(ActionRequest) returns (TurnEvent);

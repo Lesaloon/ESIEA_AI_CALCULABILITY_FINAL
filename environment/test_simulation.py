@@ -44,6 +44,79 @@ class SimulationIntegrationTests(IsolatedAsyncioTestCase):
         self.assertEqual(result.status_code, 200, result.text)
         return result.json()
 
+    async def test_experiments_read_current_scenario_without_changing_active_run(self):
+        await self.env.post('/grid/weights/1/1', json={'weight': 9})
+        run = await self.create()
+        result = await self.agent.post('/experiments', json={
+            'methods': ['grid', 'random'], 'heuristics': ['linf'], 'weights': [1, 20], 'random_trials': 2})
+        self.assertEqual(result.status_code, 200, result.text)
+        await agent_app.state.experiments.task
+        job = (await self.agent.get('/experiments')).json()
+        self.assertEqual(job['status'], 'completed', job)
+        self.assertEqual(job['completed'], 5)
+        self.assertEqual((await self.agent.get('/state')).json()['run'], run['run'])
+        self.assertTrue((await self.env.get('/scenario')).json()['locked'])
+        exported = (await self.agent.get('/experiments/export?format=json')).json()
+        self.assertEqual(exported['scenarios'][0]['grid']['walkable_cells'][4]['weight'], 9)
+        self.assertEqual(len(exported['evaluations']), 5)
+        for evaluation in exported['evaluations']:
+            self.assertEqual(evaluation['timing_runs'], 3)
+            self.assertEqual(len(evaluation['time_samples_ms']), 3)
+            self.assertAlmostEqual(evaluation['time_ms'], sum(evaluation['time_used_samples_ms']) / len(evaluation['time_used_samples_ms']))
+        csv = await self.agent.get('/experiments/export?format=csv')
+        self.assertEqual(csv.status_code, 200)
+        self.assertEqual(len(csv.text.splitlines()), 6)
+        self.assertIn('attachment;', csv.headers['content-disposition'])
+        self.assertEqual((await self.agent.get('/experiments/export?format=invalid')).status_code, 422)
+        self.assertTrue(all(row['memory_kib'] > 0 and 0 <= row['score'] <= 100 for row in job['results']))
+        self.assertEqual(len(job['algorithm_summaries']), 2)
+        rescored = await self.agent.post('/experiments/scoring', json={'time': 0, 'memory': 1, 'quality': 0, 'expanded': 0})
+        self.assertEqual(rescored.status_code, 200, rescored.text)
+        self.assertTrue(all(row['score'] == row['score_memory'] for row in rescored.json()['results']))
+        self.assertEqual((await self.agent.post('/experiments/scoring', json={
+            'time': 0, 'memory': 0, 'quality': 0, 'expanded': 0})).status_code, 422)
+        csv = await self.agent.get('/experiments/export?format=csv')
+        self.assertIn('score_memory', csv.text.splitlines()[0])
+        self.assertIn('memory_kib', csv.text.splitlines()[0])
+        self.assertIn('time_samples_ms', csv.text.splitlines()[0])
+        self.assertIn('timing_outliers', csv.text.splitlines()[0])
+
+    async def test_experiments_require_endpoints_only_for_current_map(self):
+        await self.env.post('/scenario', json={'start': None, 'goal': None})
+        result = await self.agent.post('/experiments', json={})
+        self.assertEqual(result.status_code, 409)
+        result = await self.agent.post('/experiments', json={
+            'map_source': 'random', 'map_count': 2, 'size': 3,
+            'methods': ['grid'], 'heuristics': ['linf'], 'weights': [1]})
+        self.assertEqual(result.status_code, 200, result.text)
+        await agent_app.state.experiments.task
+        self.assertEqual((await self.agent.get('/experiments')).json()['completed'], 4)
+        self.assertIsNone((await self.agent.get('/state')).json()['run'])
+
+    async def test_heuristic_weight_is_used_by_interactive_agent(self):
+        await self.env.post('/grid/weights/1/1', json={'weight': 9})
+        await self.create(heuristic='linf', heuristic_weight=20)
+        result = await self.agent.post('/step')
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()['run']['cumulative_cost'], 9)
+        self.assertEqual((await self.agent.post('/runs', json={'heuristic_weight': -1})).status_code, 422)
+
+    async def test_experiments_range_api_generates_and_exports_a_b_c(self):
+        result = await self.agent.post('/experiments', json={'weight_space': 'range', 'weight_start': 1,
+            'weight_end': 50, 'weight_step': 1, 'heuristics': ['linf'], 'methods': ['grid']})
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()['total'], 51)
+        await agent_app.state.experiments.task
+        exported = (await self.agent.get('/experiments/export?format=json')).json()
+        self.assertEqual(exported['status'], 'completed')
+        self.assertEqual(exported['weight_values'], list(range(1, 51)))
+        self.assertEqual(exported['config']['weight_start'], 1)
+        self.assertEqual(exported['config']['weight_end'], 50)
+        self.assertEqual(exported['config']['weight_step'], 1)
+        await self.create(heuristic='linf', heuristic_weight=50)
+        self.assertEqual((await self.agent.post('/experiments', json={
+            'weight_space': 'range', 'weight_step': 0})).status_code, 422)
+
     async def test_local_observation_and_read_only_full_graph(self):
         await self.env.post('/grid/weights/0/1', json={'weight': 7})
         await self.env.post('/grid/obstacles/1/0')
