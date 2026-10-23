@@ -20,7 +20,7 @@ and agent class relationships.
 See [the experiment guide](docs/experiments.md) for Grid Search, Random Search,
 weighted A*, random maps, comparison metrics and CSV/JSON exports.
 See [the French optimization summary](docs/synthese-optimisation-w.md) for the
-group's approaches, reported results and the work on the `guillian` branch.
+group's experiments, lessons learned and final submission on the `guillian` branch.
 
 ## Application requirements
 

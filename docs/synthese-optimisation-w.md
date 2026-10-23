@@ -1,127 +1,57 @@
-# Optimisation de w — Synthèse des démarches du groupe
+# Optimisation de w — Rendu commun
 
-- Cette synthèse présente d’abord mon travail sur `guillian`, puis les autres démarches du groupe et les valeurs rapportées dans leurs rendus.
+## 1. Définition du problème
 
-## Objectif
-
-- Nous cherchons un bon compromis entre la qualité du chemin et les ressources nécessaires pour le trouver.
-- Nous utilisons A* pondéré : `f = g + w × h`.
-  - `g` : coût du chemin déjà parcouru.
+- Nous cherchons un chemin entre un départ et une arrivée dans une grille comportant des obstacles et des cases de poids différents.
+- La carte est entièrement connue avant la recherche. Les déplacements sont autorisés dans **8 directions** et coûtent le poids de la case d’arrivée, y compris en diagonale. Le départ ne coûte rien.
+- Nous utilisons **A* pondéré** : `f = g + w × h`.
+  - `g` : coût accumulé depuis le départ.
   - `h` : estimation du coût restant jusqu’à l’arrivée.
-  - `w` : importance accordée à cette estimation, que nous cherchons à régler.
-- `w = 1` correspond à A* classique.
-- Un grand `w` privilégie la direction de l’arrivée : la recherche peut être plus rapide, mais le chemin plus coûteux.
-- Le coût du chemin est la **somme des poids des cases traversées**, sans compter la case de départ. Il ne correspond au nombre de déplacements que si tous les poids valent 1.
+  - `w` : poids donné à cette estimation, que nous cherchons à optimiser.
+- **w = 0** correspond à une recherche par coût accumulé, comme Dijkstra ; **w = 1** correspond à A* classique.
+- Un grand w peut accélérer la recherche en privilégiant la direction de l’arrivée, mais produire un chemin plus coûteux.
+- Notre objectif est de trouver un compromis entre **temps de recherche, mémoire utilisée et qualité du chemin**.
+- La version rendue, sur **`guillian`**, compare les couples **(heuristique, w)** avec Grid Search et Random Search, sur une carte fixe ou plusieurs cartes aléatoires partagées entre tous les candidats.
+- La plage proposée par défaut dans l’interface est **w de 1 à 50, par pas de 1** ; elle reste configurable. Une graine permet de reproduire les cartes et les tirages de paramètres.
 
-## 1. Mon travail sur la branche `guillian`
+## 2. Comment nous évaluons les réglages
 
-### Préparer une comparaison contrôlée
+- **Dijkstra est notre référence sur chaque carte** : il fournit le coût optimal ainsi que des mesures de temps, de mémoire et de nœuds développés.
+- Nous calculons des **sous-scores sans unité, sur 100**, puis un score global à **maximiser**.
+- Pour le temps, la mémoire et les nœuds développés :
+  - `score = 100 × valeur Dijkstra / (valeur Dijkstra + valeur mesurée)`.
+  - Une consommation égale à Dijkstra donne **50/100** ; une consommation inférieure donne un score supérieur.
+  - Si les deux valeurs sont nulles, le score vaut 50.
+- Pour la qualité du chemin :
+  - `score qualité = min(100, 100 × coût optimal / coût trouvé)`.
+  - Un chemin optimal donne **100/100** ; un chemin deux fois plus coûteux donne **50/100**. Un chemin réussi de coût nul donne 100.
+- Un échec de recherche donne **0 sur tous les sous-scores**.
+- Le score global est une moyenne pondérée, avec les priorités suivantes par défaut :
+  - **40 % temps**, **40 % mémoire**, **20 % qualité**, **0 % nœuds développés**.
+  - `score global = 0,4 × score temps + 0,4 × score mémoire + 0,2 × score qualité`.
+  - Ces pondérations sont modifiables, y compris après les mesures, sans relancer les recherches.
+- Sur plusieurs cartes, nous faisons la moyenne des scores. Le classement privilégie d’abord le **taux de réussite**, puis le critère choisi.
+- Pour limiter le bruit, nous effectuons un échauffement puis **3 mesures de temps par configuration et par carte** par défaut. Le temps retenu est la moyenne après filtrage des valeurs aberrantes.
+- La mémoire est le **pic d’allocations Python pendant la recherche**, mesuré dans une exécution supplémentaire et un processus dédié. Elle exclut la carte d’entrée et ne représente pas la RAM totale du programme.
+- Le temps de recherche exclut la création de la carte, le réseau et l’animation. Les mesures brutes et les paramètres sont exportables en CSV/JSON.
 
-- J’ai fait évoluer l’agent pour qu’il connaisse **toute la carte avant de chercher un chemin** : la recherche est séparée des déplacements d’exploration.
-- J’ai ajouté le réglage de **w dans A***, utilisable dans l’onglet Agent et dans les expériences : `f = g + w × h`.
-- J’ai ajouté un onglet **Expériences** pour comparer les heuristiques et les poids avec **Grid Search** et **Random Search**.
-- Les valeurs de w sont définies par une liste ou par **A = début, B = fin, C = pas**. Par défaut, l’interface propose **1 à 50, par pas de 1** ; les poids acceptés vont de **0 à 1000**.
-- Grid Search teste toutes les combinaisons ; Random Search tire des combinaisons sans remise dans la grille, ou des valeurs dans un intervalle continu.
-- Je compare les réglages sur la carte actuelle ou sur plusieurs cartes aléatoires, avec **les mêmes cartes, départs et arrivées pour tous les réglages**.
-- Une graine rend les tirages reproductibles. Modifier le budget de recherche ne change pas les cartes générées.
-- **Dijkstra est toujours mesuré une fois par carte** comme référence de coût optimal, même si seul A* est sélectionné.
+## 3. Résultats
 
-### Choisir les critères de performance
+### Premiers essais du groupe
 
-- Je relève le taux de réussite, le coût, la longueur, les nœuds développés, le temps et le pic d’allocations Python.
-- Je calcule l’écart au coût optimal : `100 × (coût − coût Dijkstra) / coût Dijkstra`.
-- J’ai ajouté un **score global sur 100 à maximiser**, avec des priorités modifiables :
-  - **40 % temps**, **40 % mémoire**, **20 % qualité du chemin**, **0 % nœuds développés** par défaut.
-  - Pour le temps, la mémoire et les nœuds : `100 × référence / (référence + valeur)` ; faire aussi bien que Dijkstra donne **50/100** sur le critère.
-  - Pour la qualité : `100 × coût optimal / coût du chemin`, plafonné à 100 ; un chemin optimal donne **100/100**.
-  - Le score global est la moyenne pondérée de ces critères. Avec les poids par défaut, Dijkstra obtient donc **60/100** comme référence.
-- Le classement privilégie d’abord le taux de réussite, puis le critère choisi. Les pondérations du score peuvent être changées **sans relancer les recherches**.
+- Sur une grille fixe avec obstacle et poids variables, une première recherche combine environ **100 valeurs de w**, puis un Hill Climbing autour des **10 meilleurs points**.
+- Avec un score donnant autant d’importance au coût qu’à la durée, le **meilleur résultat rapporté est w = 171**. Ce résultat fluctue entre les lancements, ce qui met en évidence la sensibilité aux mesures de temps.
+- Sur cette même grille, en donnant **10 fois plus d’importance au coût qu’à la durée**, le **meilleur résultat rapporté devient w = 1**, décrit comme plus stable.
+- Ces essais, consignés dans les rendus de `pauline_recherche` et `theo`, montrent que le meilleur w dépend des priorités du score. Ils ont motivé l’utilisation de pondérations ajustables et de mesures répétées dans notre version finale.
+- Les scores de ces premiers essais diffèrent du score final sur 100 : leurs valeurs ne sont donc pas directement comparables.
 
-### Réduire le bruit des mesures et conserver les résultats
+### Résultats vérifiés dans la version finale
 
-- J’exécute un échauffement, puis **3 mesures de temps par configuration et par carte** par défaut.
-- J’utilise la **moyenne des mesures conservées après filtrage des valeurs aberrantes**, tout en conservant les mesures brutes pour l’export.
-- Je mesure la mémoire lors d’une exécution supplémentaire, séparée des mesures de temps pour éviter le surcoût du traçage mémoire.
-- Les benchmarks tournent dans un **processus dédié**, sans inclure l’animation ni les échanges réseau dans le temps de recherche.
-- L’interface affiche la progression, des tableaux triables et des courbes selon w ou le numéro d’essai ; les résultats sont exportables en **CSV/JSON**, et le JSON conserve aussi les cartes.
-- J’ai ajouté des tests sur les tirages reproductibles, les coûts, les scores, les mesures, l’annulation et les exports, ainsi que des commentaires dans le code pour expliquer la démarche.
-
-### Valeurs vérifiées sur ma branche
-
-- Sur le scénario de test **3 × 3**, les cases valent 1 sauf le centre qui vaut 9 ; le départ et l’arrivée sont dans deux coins opposés, avec déplacements diagonaux autorisés.
-- Avec **L∞ et w = 1**, A* contourne la case chère : **coût = 3**.
-- Avec **L∞ et w = 20**, A* prend le chemin direct par le centre : **coût = 10**, soit environ **+233,3 %** par rapport à l’optimum.
-- Avec **w = 0**, A* retrouve le coût et le nombre d’expansions de Dijkstra sur ce test.
-- Ces valeurs sont vérifiées dans `agent/test_experiments.py` ; elles illustrent l’effet de w sur un cas contrôlé. Le meilleur w global reste à établir à partir des résultats exportés sur plusieurs cartes.
-
-## 2. Base commune du groupe
-
-- Branches `main`, `guillian`, `pauline_algo` et `jonathan` : mise en place de la grille, des poids, des obstacles et des algorithmes de parcours.
-- Comparaison possible entre BFS, DFS, Greedy, Dijkstra et A*, selon les branches.
-- Dijkstra sert de référence pour connaître le coût optimal.
-- La version de `guillian` intégrée dans `main` donne à l’agent la carte complète : on peut mesurer la recherche du chemin indépendamment des déplacements d’exploration.
-- `jonathan` ajoute A* pondéré avec un **w par défaut de 1,5** : c’est un réglage initial, pas un optimum mesuré.
-
-## 3. Première recherche sur une grille fixe
-
-- Démarche présente sur `pauline_recherche`, également décrite dans le rendu de `theo`.
-- Configuration : une grille fixe avec un obstacle et des poids sur l’un des chemins.
-- Premier score à minimiser : `coût / coût minimum observé + durée / durée minimum observée`.
-  - Le coût et la durée ont la même importance.
-  - La mémoire n’entre pas dans ce premier score.
-  - La valeur idéale est 2, si un même réglage atteint les deux minima observés.
-- Recherche en trois étapes :
-  - Calcul d’une borne de recherche : `poids maximum × (nombre de cases franchissables − 1)`.
-  - **Grid Search** : test d’environ **100 valeurs de w** entre 1 et cette borne.
-  - **Hill Climbing** : affinement autour des **10 meilleurs points**, avec un **pas de 0,1** dans la version actuelle de Pauline.
-- **Résultat rapporté : w = 171** pour le premier test sur cette grille.
-- Limite constatée : le meilleur w fluctue entre les lancements, car les mesures de temps sont sensibles au bruit.
-- La borne utilisée dépend de la carte ; sa justification dans le code de Pauline est liée à l’heuristique L1, et ne doit pas être généralisée automatiquement à toutes les heuristiques.
-
-## 4. Donner davantage d’importance au coût du chemin
-
-- Branche `pauline_recherche` : évolution vers un score comparé à une référence fixe, A* avec `w = 1` et la même heuristique.
-- Formule : `a × coût/coût_ref + b × durée/durée_ref + c × mémoire/mémoire_ref`.
-- Dans l’essai décrit dans le rendu, le coût compte **10 fois plus que la durée** et la mémoire est ignorée : `a = 10`, `b = 1`, `c = 0`.
-- **Résultat rapporté : w = 1**, avec un résultat décrit comme plus stable sur cette grille.
-- Interprétation : quand la qualité du chemin devient prioritaire, le réglage retenu revient à A* classique.
-- Ces coefficients correspondent à l’essai du rendu ; le code actuel laisse les coefficients configurables et utilise par défaut `a = 1`, `b = 1`, `c = 0`.
-
-## 5. Comparer plusieurs méthodes pour trouver w
-
-- Branche `jonathan-optimisation` : **Grid Search**, **Random Search** et **Hill Climbing**.
-- Branche `saru_v2` : ajout du **recuit simulé** et de la **recherche tabou**, avec comparaison sur une même carte.
-- Branche `theo` : comparaison de ces méthodes et d’une méthode **hybride, grille grossière puis recherche tabou**.
-- Principe des méthodes :
-  - **Grid Search** : tester régulièrement toutes les valeurs de l’intervalle choisi ; simple, mais coûteux si le pas est petit.
-  - **Random Search** : tester un nombre limité de valeurs tirées au hasard ; moins d’essais, mais possibilité de manquer une bonne zone.
-  - **Hill Climbing** : améliorer progressivement un point de départ ; peut rester bloqué sur un minimum local ou un plateau.
-  - **Recuit simulé** : accepter parfois une dégradation pour sortir d’un minimum local.
-  - **Recherche tabou** : mémoriser les points récents pour éviter de tourner en rond.
-  - **Hybride** : repérer une bonne zone avec une grille, puis affiner localement.
-- Jonathan et Saru permettent aussi de chercher le couple **(heuristique, w)**, ou de verrouiller l’heuristique pour ne régler que w.
-- Leurs scores combinent coût, temps et mémoire, normalisés par rapport à A* avec **L∞ et w = 1**.
-- Théo utilise le coût optimal de Dijkstra pour normaliser le coût du chemin et le pic de taille de la file de priorité comme indicateur mémoire.
-- Aucun autre meilleur w chiffré n’est consigné dans les rendus consultés pour ces comparaisons.
-
-## 6. Vérifier si le réglage fonctionne sur d’autres cartes
-
-- Le rendu de `theo` décrit la réutilisation de **w = 171** sur d’autres configurations : le réglage reste orienté vers la rapidité, mais le coût du chemin peut se dégrader. Aucun tableau chiffré de ces essais n’y est fourni.
-- Branche `pauline_recherche` : recherche d’un **w global**, en évaluant les mêmes valeurs sur plusieurs cartes aléatoires et en conservant le meilleur score moyen.
-- Branche `theo` : optimisation sur un ensemble comprenant un piège en U et trois cartes aléatoires pondérées.
-- Branche `saru_v2` : comparaison de quatre stratégies :
-  - Réutiliser le réglage trouvé sur la carte initiale.
-  - Garder A* classique comme référence.
-  - Choisir un seul couple `(heuristique, w)` performant en moyenne sur les cartes évaluées.
-  - Refaire l’optimisation sur chaque carte.
-- Aucun w global final chiffré n’est enregistré dans les rendus consultés.
-- Conclusion : un bon w sur une carte n’est pas nécessairement un bon w sur une autre ; il dépend des obstacles, des poids, de la taille et de l’heuristique.
-
-## 7. Comparer les protocoles de mesure
-
-- Les temps très courts peuvent faire varier le classement d’un lancement à l’autre.
-- `jonathan-optimisation` utilise la **médiane de 5 mesures de temps** par configuration et mesure la mémoire séparément.
-- `saru_v2` partage les évaluations entre les méthodes sur la carte fixe : un même couple `(heuristique, w)` conserve le même score pendant la comparaison.
-- Sur ma branche `guillian`, les réglages partagent les cartes mais chaque essai est mesuré séparément ; le lissage du temps limite l’influence des pics ponctuels.
-- Les scores ne se comparent pas directement entre toutes les branches : les références, les critères mémoire et les protocoles de mesure diffèrent.
-- Avec huit voisins et un coût minimal de 1 par déplacement, **L∞** est une heuristique admissible. `w = 1` ne garantit donc pas à lui seul un coût optimal si une autre heuristique surestime la distance.
+- Sur notre scénario contrôlé **3 × 3**, toutes les cases valent 1 sauf le centre qui vaut 9. Le départ et l’arrivée sont deux coins opposés.
+  - **L∞, w = 1** : A* contourne le centre ; **coût du chemin = 3**.
+  - **L∞, w = 20** : A* traverse le centre ; **coût du chemin = 10**, soit environ **+233,3 %** par rapport à l’optimum et un **score qualité de 30/100**.
+  - **w = 0** : A* retrouve le coût et le nombre de nœuds développés de Dijkstra sur ce scénario.
+- Ces résultats sont vérifiés par les tests de `agent/test_experiments.py` ; ils illustrent la dégradation possible du coût lorsque w augmente.
+- Avec nos pondérations par défaut, **Dijkstra obtient 60/100 sur une carte accessible** : 50 pour le temps, 50 pour la mémoire et 100 pour la qualité.
+- Nous n’avons pas de meilleur w global établi par une campagne multi-cartes conservée dans ce rendu. Les résultats ci-dessus ne permettent pas de conclure à une valeur universelle.
+- **Bilan :** le choix de w dépend de la carte, de l’heuristique et des priorités retenues. Notre outil permet de comparer ces réglages dans les mêmes conditions et de conserver les résultats pour justifier le compromis choisi.
