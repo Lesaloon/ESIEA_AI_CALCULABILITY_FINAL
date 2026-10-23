@@ -7,7 +7,7 @@ from agent.algorithms.grid_search import _path_cost, _score, run_trial
 from agent.algorithms.weighted_astar import WeightedAStar
 
 
-def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, score=None, memory=False):
+def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, score=None, memory=False, timing_repeats=1):
     """Walk from w by `step` until the current value is a local minimum.
 
     Neighbors are w - step and w + step. The neighbor below 1 is ignored.
@@ -15,7 +15,8 @@ def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, 
     The walk moves to the best neighbor when that score is strictly better,
     and stops when neither neighbor improves it. `limit` is the maximum
     number of moves. `score` replaces the default formula when set.
-    `memory` records the peak traced memory of each run.
+    `memory` records the peak traced memory of each run. `timing_repeats`
+    above 1 stores the median duration.
     """
     w, step, limit = _parameters(w, step, limit)
     score = _score if score is None else score
@@ -24,8 +25,8 @@ def hill_climbing(graph, start, target, heuristic='l1', w=1, step=1, limit=100, 
     def evaluate(index):
         if index not in trials_by_index:
             weight = w + index * step
-            if memory:
-                trials_by_index[index] = run_trial(graph, start, target, heuristic, weight, True)
+            if memory or timing_repeats != 1:
+                trials_by_index[index] = run_trial(graph, start, target, heuristic, weight, memory, timing_repeats)
             else:
                 algorithm = WeightedAStar(heuristic, weight)
                 started = perf_counter()

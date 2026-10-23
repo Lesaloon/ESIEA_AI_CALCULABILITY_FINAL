@@ -79,7 +79,7 @@
         }
       } @else {
         <h3 id="main-algo-2-title">Recherche 2</h3>
-        <p class="help">Same search as Recherche 1. The score is a·cost/cost_ref + b·duration/duration_ref + c·memory/memory_ref. The reference is one A* search at w = 1 with the selected heuristic. a = 1, b = 1 and c = 0, so memory is measured but does not change the score. The search does not move the agent. Lower scores are better. Click a point to keep that w for the next run.</p>
+        <p class="help">Same search as Recherche 1. The score is a·cost/cost_ref + b·duration/duration_ref + c·memory/memory_ref. The reference is one A* search at w = 1 with the selected heuristic. Each duration, including the reference, is the median of 3 runs. a = 1, b = 1 and c = 0, so memory is measured but does not change the score. The search does not move the agent. Lower scores are better. Click a point to keep that w for the next run.</p>
         <div class="actions">
           <button hlmBtn id="main-algo-2-compare" [disabled]="sim.busy() || running() || env.busy() || !sim.scenario().start || !sim.scenario().goal"
             (click)="runMainAlgo2()">Compare</button>

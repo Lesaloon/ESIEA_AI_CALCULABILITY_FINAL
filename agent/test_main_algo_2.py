@@ -4,8 +4,8 @@ from math import inf
 from unittest import TestCase
 from unittest.mock import patch
 
-from agent.algorithms.grid_search import importance, reference_score
-from agent.algorithms.main_algo_2 import main_algo_2
+from agent.algorithms.grid_search import graph_from_weights, importance, reference_score, run_trial
+from agent.algorithms.main_algo_2 import TIMING_REPEATS, main_algo_2
 
 
 def steady_clock():
@@ -87,3 +87,23 @@ class MainAlgo2Tests(TestCase):
         self.assertEqual(len(report['climbs']), 1)
         self.assertEqual(report['best']['w'], 1)
         self.assertEqual(report['best']['score'], reference_score(report['best'], report['reference']))
+
+    def test_duration_is_the_median_of_three_runs(self):
+        self.assertEqual(TIMING_REPEATS, 3)
+        clock = iter([0, 0.05, 0.05, 0.06, 0.06, 0.16])
+        graph = graph_from_weights([[1, 1]])
+        with patch('agent.algorithms.grid_search.perf_counter', lambda: next(clock)):
+            trial = run_trial(graph, (0, 0), (1, 0), 'l1', 1, memory=True, timing_repeats=TIMING_REPEATS)
+        self.assertAlmostEqual(trial['duration'], 0.05)
+        self.assertIn('memory', trial)
+
+    def test_recherche_2_times_every_search_three_times(self):
+        calls = {'n': 0}
+
+        def tick():
+            calls['n'] += 1
+            return float(calls['n'])
+
+        with patch('agent.algorithms.grid_search.perf_counter', tick):
+            main_algo_2([[1]], (0, 0), (0, 0))
+        self.assertEqual(calls['n'], 24)

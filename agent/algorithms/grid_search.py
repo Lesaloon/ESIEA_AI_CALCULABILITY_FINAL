@@ -2,57 +2,93 @@
 
 import tracemalloc
 from math import inf, isfinite
+from statistics import median
 from time import perf_counter
 
 from agent.algorithms.weighted_astar import WeightedAStar
 from agent.memory import RunGraph
 
 
-def run_trial(graph, start, target, heuristic, w, memory=False):
-    """Run one weighted A* search and record its cost and duration.
+def run_trial(graph, start, target, heuristic, w, memory=False, timing_repeats=1):
+    """Run weighted A* and record its cost and duration.
 
-    Duration is a single clock reading. When `memory` is set, the trial also
-    records the peak traced memory of that same run, in kilobytes.
+    Duration is a single clock reading when `timing_repeats` is 1. A larger
+    repeat count runs the search that many times and keeps the median duration,
+    so one slow or fast run does not decide the score. When `memory` is set,
+    the trial also records a peak traced memory in kilobytes. With one repeat
+    that peak comes from the timed run. With several repeats it comes from a
+    separate run, so tracing stays out of the median.
     """
+    if type(timing_repeats) is not int or timing_repeats < 1:
+        raise ValueError('timing repeats must be a positive integer')
     algorithm = WeightedAStar(heuristic, w)
-    tracing = False
-    baseline = 0
+    if timing_repeats == 1:
+        tracing = False
+        baseline = 0
+        if memory:
+            tracing = tracemalloc.is_tracing()
+            if not tracing:
+                tracemalloc.start()
+            tracemalloc.reset_peak()
+            baseline = tracemalloc.get_traced_memory()[0]
+        started = perf_counter()
+        result = algorithm.search(graph, start, target)
+        duration = perf_counter() - started
+        trial = _trial(w, result, graph, duration)
+        if memory:
+            trial['memory'] = max(tracemalloc.get_traced_memory()[1] - baseline, 0) / 1024
+            if not tracing:
+                tracemalloc.stop()
+        return trial
+
+    durations = []
+    result = None
+    for _ in range(timing_repeats):
+        started = perf_counter()
+        result = algorithm.search(graph, start, target)
+        durations.append(perf_counter() - started)
+    trial = _trial(w, result, graph, median(durations))
     if memory:
-        tracing = tracemalloc.is_tracing()
-        if not tracing:
-            tracemalloc.start()
-        tracemalloc.reset_peak()
-        baseline = tracemalloc.get_traced_memory()[0]
-    started = perf_counter()
-    result = algorithm.search(graph, start, target)
-    duration = perf_counter() - started
-    trial = dict(
+        trial['memory'] = _peak_memory(algorithm, graph, start, target)
+    return trial
+
+
+def _trial(w, result, graph, duration):
+    return dict(
         w=w,
         cost=_path_cost(graph, result.path),
         duration=duration,
         expansions=len(result.trace.expanded),
         path=result.path,
     )
-    if memory:
-        trial['memory'] = max(tracemalloc.get_traced_memory()[1] - baseline, 0) / 1024
-        if not tracing:
-            tracemalloc.stop()
-    return trial
 
 
-def grid_search(graph, start, target, heuristic='l1', low=1, high=10, step=1, score=None, memory=False):
+def _peak_memory(algorithm, graph, start, target):
+    tracing = tracemalloc.is_tracing()
+    if not tracing:
+        tracemalloc.start()
+    tracemalloc.reset_peak()
+    baseline = tracemalloc.get_traced_memory()[0]
+    algorithm.search(graph, start, target)
+    peak = max(tracemalloc.get_traced_memory()[1] - baseline, 0) / 1024
+    if not tracing:
+        tracemalloc.stop()
+    return peak
+
+
+def grid_search(graph, start, target, heuristic='l1', low=1, high=10, step=1, score=None, memory=False, timing_repeats=1):
     """Try each w from low to high and keep the best cost/duration compromise.
 
     Bounds must be finite and at least 1. The default sweep is 1, 2, …, 10.
     Each trial records the path cost and the search duration. The best w
     minimizes cost/best_cost + duration/best_duration. `score` replaces that
     formula when another compromise is needed. `memory` records the peak
-    traced memory of each run.
+    traced memory of each run. `timing_repeats` above 1 stores the median duration.
     """
     score = _score if score is None else score
     trials = []
     for w in _weights(low, high, step):
-        trials.append(run_trial(graph, start, target, heuristic, w, memory))
+        trials.append(run_trial(graph, start, target, heuristic, w, memory, timing_repeats))
 
     best_cost = min(trial['cost'] for trial in trials)
     best_duration = min(trial['duration'] for trial in trials)

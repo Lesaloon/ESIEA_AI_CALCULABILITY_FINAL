@@ -4,6 +4,8 @@ from agent.algorithms.grid_search import graph_from_weights, grid_search, import
 from agent.algorithms.hill_climbing import hill_climbing
 from agent.algorithms.main_algo_1 import weight_ceiling
 
+TIMING_REPEATS = 3
+
 
 def main_algo_2(weights, start, target, heuristic='l1', a=1.0, b=1.0, c=0.0):
     """Search [1, ceiling] with 100 weights, then hill-climb the 10 best.
@@ -17,20 +19,21 @@ def main_algo_2(weights, start, target, heuristic='l1', a=1.0, b=1.0, c=0.0):
 
     ``a`` and ``b`` default to 1. ``c`` defaults to 0, so memory is measured
     but left out of the score. The reference is not the minimum of the batch.
+    Each duration, including the reference, is the median of three runs.
     """
     a, b, c = importance(a, b, c)
     ceiling = weight_ceiling(weights)
     graph = graph_from_weights(weights)
-    reference = run_trial(graph, start, target, heuristic, 1.0, memory=True)
+    reference = run_trial(graph, start, target, heuristic, 1.0, memory=True, timing_repeats=TIMING_REPEATS)
 
     def score(trial, _best_cost, _best_duration):
         return reference_score(trial, reference, a, b, c)
 
     step = (ceiling - 1) / 99 if ceiling > 1 else 1.0
-    grid = grid_search(graph, start, target, heuristic, 1, ceiling, step, score=score, memory=True)
+    grid = grid_search(graph, start, target, heuristic, 1, ceiling, step, score=score, memory=True, timing_repeats=TIMING_REPEATS)
     seeds = sorted(grid['trials'], key=lambda trial: (trial['score'], trial['w']))[:10]
     climbs = [
-        hill_climbing(graph, start, target, heuristic, seed['w'], 0.1, score=score, memory=True)
+        hill_climbing(graph, start, target, heuristic, seed['w'], 0.1, score=score, memory=True, timing_repeats=TIMING_REPEATS)
         for seed in seeds
     ]
     finals = [dict(climb['best']) for climb in climbs]
