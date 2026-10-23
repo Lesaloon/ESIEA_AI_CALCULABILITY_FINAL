@@ -68,6 +68,7 @@ Transport-independent types live in `agent/models.py`:
 
 - `AgentConfig.heuristic`: the selected distance metric.
 - `AgentConfig.algorithm`: `dijkstra` or `astar`.
+- `AgentConfig.heuristic_weight`: non-negative multiplier `w` (default 1, maximum 1000).
 - `GraphView`: a read-only graph of **all** walkable cells in the frozen run map.
   `weights` holds entry costs, `edges[source][destination]` holds directional
   movement costs, and `visited` tracks physically occupied positions only.
@@ -134,12 +135,13 @@ For `dx = abs(x - goal.x)` and `dy = abs(y - goal.y)`:
 
 `agent.distances.distance(a, b, metric)` computes the heuristic without querying
 the environment. A* uses `config.heuristic` to estimate distance to the
-goal and orders search nodes by `f = g + h`. Dijkstra uses `h = 0` and `f = g`.
+goal and orders search nodes by `f = g + w × h`, where `w` is the configurable
+heuristic weight. Dijkstra uses `h = 0` and `f = g` regardless of `w`.
 The UI disables the heuristic selector for Dijkstra and displays Zero; switching
 back to A* restores the previously chosen metric.
 
 For eight-way moves with minimum entry cost 1, L∞ is admissible and consistent.
-Zero and L∞ give minimum-cost routes. L1, L2, squared L2 and MSE can overestimate,
+Zero and L∞ with `w ≤ 1` give minimum-cost routes. L1, L2, squared L2 and MSE can overestimate,
 so the usual A* optimality guarantee does not apply to those choices.
 
 ## Transport and ownership
@@ -154,7 +156,8 @@ The environment runs FastAPI and `grpc.aio` on one event loop and shares a lock
 across grid edits, scenario configuration and turns. Use one process/worker per
 service while state is in memory. Paused runs still lock scenario edits.
 
-gRPC exposes `StartRun`, `Observe`, `ApplyAction`, `GetRunState`, `GetRunGrid`,
+gRPC exposes `GetScenarioSnapshot` (atomic read-only grid + endpoints),
+`StartRun`, `Observe`, `ApplyAction`, `GetRunState`, `GetRunGrid`,
 `GetTurnEvents` and `EndRun`. The agent requests `GetRunGrid` for every new run.
 `GetRunState` with an empty ID recovers the latest environment run; other run
 requests require a matching ID. Start requests and actions have unique IDs.
@@ -166,10 +169,12 @@ same move without another decision or search.
 Agent HTTP endpoints:
 
 - `GET /algorithms`, `/state`, `/health`.
-- `POST /runs`: `algorithm` (default `astar`), `heuristic`, `interval_ms`, `max_turns`.
+- `POST /runs`: `algorithm` (default `astar`), `heuristic`, `heuristic_weight` (default 1), `interval_ms`, `max_turns`.
 - `POST /step`, `/run`, `/pause`, `/stop`.
 - `GET /history?run_id=...&after_sequence=...`: up to 100 new records; paginate
   using the last sequence. A mismatched run ID fails.
+- Experiments: `POST/GET /experiments`, `POST /experiments/cancel`,
+  `GET /experiments/export?format=json|csv`. See [the experiment guide](experiments.md).
 
 Environment additions:
 
@@ -199,7 +204,7 @@ is the repository root so each includes the same `contracts/` package.
 
 ```sh
 python -m pip install -r environment/requirements-dev.txt
-python -m unittest environment.test_grid environment.test_api environment.test_simulation -v
+python -m unittest agent.test_experiments environment.test_grid environment.test_api environment.test_simulation -v
 docker compose config --quiet
 ```
 

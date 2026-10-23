@@ -34,6 +34,11 @@ class EnvironmentStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.GetScenarioSnapshot = channel.unary_unary(
+                '/simulation.v1.Environment/GetScenarioSnapshot',
+                request_serializer=contracts_dot_simulation__pb2.RunRequest.SerializeToString,
+                response_deserializer=contracts_dot_simulation__pb2.ScenarioSnapshot.FromString,
+                _registered_method=True)
         self.StartRun = channel.unary_unary(
                 '/simulation.v1.Environment/StartRun',
                 request_serializer=contracts_dot_simulation__pb2.StartRequest.SerializeToString,
@@ -73,6 +78,12 @@ class EnvironmentStub(object):
 
 class EnvironmentServicer(object):
     """Missing associated documentation comment in .proto file."""
+
+    def GetScenarioSnapshot(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def StartRun(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -119,6 +130,11 @@ class EnvironmentServicer(object):
 
 def add_EnvironmentServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'GetScenarioSnapshot': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetScenarioSnapshot,
+                    request_deserializer=contracts_dot_simulation__pb2.RunRequest.FromString,
+                    response_serializer=contracts_dot_simulation__pb2.ScenarioSnapshot.SerializeToString,
+            ),
             'StartRun': grpc.unary_unary_rpc_method_handler(
                     servicer.StartRun,
                     request_deserializer=contracts_dot_simulation__pb2.StartRequest.FromString,
@@ -164,6 +180,33 @@ def add_EnvironmentServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class Environment(object):
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def GetScenarioSnapshot(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/simulation.v1.Environment/GetScenarioSnapshot',
+            contracts_dot_simulation__pb2.RunRequest.SerializeToString,
+            contracts_dot_simulation__pb2.ScenarioSnapshot.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def StartRun(request,

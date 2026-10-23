@@ -17,6 +17,7 @@ export class AgentPanel {
   readonly env = inject(EnvironmentStore);
   readonly algorithm = signal('astar');
   readonly heuristic = signal('l1');
+  readonly heuristicWeight = signal(1);
   readonly interval = signal(300);
   readonly maxTurns = signal(1000);
   readonly replay = signal<number | null>(null);
@@ -49,7 +50,8 @@ export class AgentPanel {
   readonly cost = computed(() => this.replay() === null ? this.sim.state()?.run?.cumulative_cost ?? 0
     : this.displayedEvent()?.cumulative_cost ?? 0);
   readonly configValid = computed(() => Number.isInteger(this.interval()) && this.interval() >= 50 && this.interval() <= 5000
-    && Number.isInteger(this.maxTurns()) && this.maxTurns() >= 1 && this.maxTurns() <= 10000);
+    && Number.isInteger(this.maxTurns()) && this.maxTurns() >= 1 && this.maxTurns() <= 10000
+    && (this.algorithm() === 'dijkstra' || (Number.isFinite(this.heuristicWeight()) && this.heuristicWeight() >= 0 && this.heuristicWeight() <= 1000)));
   readonly selectedAlgorithm = computed(() => this.sim.algorithms().find(a => a.id === this.algorithm()));
 
   constructor() {
@@ -62,6 +64,7 @@ export class AgentPanel {
         if (state?.config) {
           this.algorithm.set(state.config.algorithm);
           this.heuristic.set(state.config.heuristic);
+          this.heuristicWeight.set(state.config.heuristic_weight ?? 1);
           this.interval.set(state.config.interval_ms); this.maxTurns.set(state.config.max_turns);
         }
       }
@@ -71,6 +74,7 @@ export class AgentPanel {
   async create() {
     this.replay.set(null);
     await this.sim.create({ algorithm: this.algorithm(), heuristic: this.heuristic(),
+      heuristic_weight: this.algorithm() === 'dijkstra' ? 0 : this.heuristicWeight(),
       interval_ms: this.interval(), max_turns: this.maxTurns() });
   }
 }

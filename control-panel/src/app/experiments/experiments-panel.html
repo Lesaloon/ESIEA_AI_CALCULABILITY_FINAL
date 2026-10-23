@@ -1,0 +1,224 @@
+<section aria-labelledby="experiments-heading">
+  <div class="heading">
+    <div><p class="eyebrow">LABORATOIRE / HYPERPARAMÈTRES</p><h2 id="experiments-heading">Expériences</h2></div>
+    <span class="formula">f = g + w × h</span>
+  </div>
+  <p class="intro">Comparez les réglages d’A* sur les mêmes cartes. Dijkstra fournit le coût optimal de référence.</p>
+
+  <form #experimentForm="ngForm" (ngSubmit)="start()">
+    <fieldset [disabled]="locked()">
+      <legend>Algorithmes et méthodes</legend>
+      <div class="choices">
+        <label class="check"><input type="checkbox" name="astar" [(ngModel)]="useAstar"> A*</label>
+        <label class="check"><input type="checkbox" name="dijkstra" [(ngModel)]="useDijkstra"> Dijkstra</label>
+        <label class="check"><input type="checkbox" name="grid" [(ngModel)]="useGrid"> Grid Search</label>
+        <label class="check"><input type="checkbox" name="random" [(ngModel)]="useRandom"> Random Search</label>
+      </div>
+      <p class="help">Dijkstra est calculé une seule fois par carte, y compris comme référence pour une recherche A* seule.</p>
+      <div class="fields">
+        <label>Poids à tester<select name="weightSpace" [(ngModel)]="weightSpace"><option value="range">Début / fin / pas (A, B, C)</option><option value="list">Liste personnalisée</option></select></label>
+        <label>Critère de sélection<select name="objective" [(ngModel)]="objective"><option value="score">Score d’efficacité global</option><option value="cost">Coût, puis nœuds développés</option><option value="expanded">Nœuds développés</option><option value="time_ms">Temps de calcul</option><option value="memory_kib">Mémoire auxiliaire</option></select></label>
+      </div>
+      @if (weightSpace === 'range') {
+        <div class="range-fields">
+          <label>A — Début<input type="number" name="weightStart" [(ngModel)]="weightStart" min="0" max="1000" step="any" required></label>
+          <label>B — Fin<input type="number" name="weightEnd" [(ngModel)]="weightEnd" min="0" max="1000" step="any" required></label>
+          <label>C — Pas<input type="number" name="weightStep" [(ngModel)]="weightStep" min="0" max="1000" step="any" required></label>
+        </div>
+        <p class="help">w = A + k × C, tant que w ≤ B. La fin est incluse si le pas tombe dessus. Les pas décimaux sont acceptés.</p>
+      } @else {
+        <div class="fields"><label>Poids de l’heuristique (liste)<input name="weights" [(ngModel)]="weightsText" required placeholder="0.5, 1, 1.5, 2"></label></div>
+      }
+      <p class="field-label">Heuristiques A*</p>
+      <div class="choices">
+        @for (metric of metrics; track metric) {
+          <label class="check"><input type="checkbox" [checked]="selectedHeuristics.includes(metric)"
+            (change)="toggleHeuristic(metric, $any($event.target).checked)"> {{ metric }}</label>
+        }
+      </div>
+      <p class="help">Grid Search teste le produit heuristiques × poids. Avec les déplacements diagonaux, L∞ est admissible pour w ≤ 1 ; les autres réglages peuvent produire un chemin plus coûteux.</p>
+      @if (useRandom && useAstar) {
+        <div class="fields">
+          <label>Espace Random Search<select name="randomSpace" [(ngModel)]="randomSpace"><option value="discrete">Poids définis ci-dessus, sans doublons</option><option value="continuous">Intervalle continu, tirage uniforme</option></select></label>
+          <label>Budget de configurations<input type="number" name="trials" [(ngModel)]="randomTrials" min="1" max="180" step="1" required></label>
+          @if (randomSpace === 'continuous') {
+            <label>Poids minimum<input type="number" name="wmin" [(ngModel)]="weightMin" min="0" max="1000" step="any" required></label>
+            <label>Poids maximum<input type="number" name="wmax" [(ngModel)]="weightMax" min="0" max="1000" step="any" required></label>
+          }
+        </div>
+        <p class="help">En mode discret, Random Search échantillonne les mêmes poids que Grid Search (A, B, C ou liste). Le budget est plafonné au nombre de combinaisons disponibles.</p>
+      }
+    </fieldset>
+
+    <fieldset [disabled]="locked()">
+      <legend>Score d’efficacité</legend>
+      <p class="help">Pondérations relatives : par défaut 40 % temps, 40 % mémoire, 20 % qualité. Mettez 0 pour ignorer une dimension.</p>
+      <div class="fields">
+        <label>Poids du temps<input type="number" name="scoreTime" [(ngModel)]="scoreTime" min="0" step="any" required></label>
+        <label>Poids de la mémoire<input type="number" name="scoreMemory" [(ngModel)]="scoreMemory" min="0" step="any" required></label>
+        <label>Poids de la qualité du chemin<input type="number" name="scoreQuality" [(ngModel)]="scoreQuality" min="0" step="any" required></label>
+        <label>Poids des nœuds développés<input type="number" name="scoreExpanded" [(ngModel)]="scoreExpanded" min="0" step="any" required></label>
+        <label>Exécutions par configuration et par carte<input type="number" name="timingRepeats" [(ngModel)]="timingRepeats" min="1" step="1" required></label>
+      </div>
+      <p class="help">Chaque configuration est exécutée 3 fois par carte par défaut, après un échauffement. Le temps lissé est la moyenne des mesures conservées après filtrage des valeurs aberrantes. Les mesures brutes restent disponibles pour comparer.</p>
+      <details class="scoring-details"><summary>Comment les temps sont-ils lissés ?</summary>
+        <p class="help">Pour au moins 3 mesures, on écarte une mesure si son écart à la médiane dépasse max(3 × 1,4826 × MAD, 25 % de la médiane). MAD est la médiane des écarts absolus à la médiane. On fait ensuite la moyenne des mesures conservées. Avec 1 ou 2 mesures, on conserve tout.</p>
+      </details>
+      <p class="help">La mémoire est le pic d’allocations Python de la recherche (traces incluses), mesuré séparément dans un processus isolé ; elle exclut la carte d’entrée et la mémoire du serveur.</p>
+      @if (job() && !running()) {
+        <button hlmBtn variant="outline" type="button" class="rescore" [disabled]="locked() || !weightsValid()" (click)="applyScoring()">Recalculer les scores existants</button>
+        <p class="help">Applique ces pondérations aux mesures enregistrées sans relancer les recherches.</p>
+      }
+    </fieldset>
+
+    <fieldset [disabled]="locked()">
+      <legend>Cartes d’évaluation</legend>
+      <div class="fields">
+        <label>Source<select name="source" [(ngModel)]="mapSource"><option value="current">Carte actuelle</option><option value="random">Random maps</option></select></label>
+        <label>Graine reproductible<input type="number" name="seed" [(ngModel)]="seed" min="0" max="2147483647" step="1" required></label>
+        @if (mapSource === 'random') {
+          <label>Nombre de cartes<input type="number" name="count" [(ngModel)]="mapCount" min="1" max="50" step="1" required></label>
+          <label>Taille de la grille<input type="number" name="size" [(ngModel)]="size" min="3" max="20" step="1" required></label>
+          <label>Obstacles (%)<input type="number" name="density" [(ngModel)]="density" min="0" max="70" step="any" required></label>
+          <label>Poids des cellules minimum<input type="number" name="cellMin" [(ngModel)]="cellWeightMin" min="1" max="9" step="1" required></label>
+          <label>Poids des cellules maximum<input type="number" name="cellMax" [(ngModel)]="cellWeightMax" min="1" max="9" step="1" required></label>
+        }
+      </div>
+      <p class="help">@if (mapSource === 'current') { Configurez le départ et l’arrivée dans Environment. La carte est figée au lancement. } @else { Les départs et arrivées aléatoires sont distincts et reliés par un chemin. Les cartes générées sont incluses dans l’export JSON. }</p>
+    </fieldset>
+    <div class="actions">
+      <button hlmBtn type="submit" [disabled]="locked() || experimentForm.invalid || !weightsValid()">Lancer l’expérience</button>
+      @if (running()) { <button hlmBtn variant="outline" type="button" [disabled]="busy()" (click)="cancel()">Annuler</button> }
+      <button hlmBtn variant="outline" type="button" [disabled]="busy()" (click)="refresh()">Actualiser</button>
+    </div>
+  </form>
+
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  @if (job(); as experiment) {
+    <div class="run-status" role="status">
+      <strong>{{ statuses[experiment.status] }}</strong>
+      <span>{{ experiment.completed }} / {{ experiment.total }} évaluations · {{ experiment.elapsed_ms / 1000 | number:'1.1-1' }} s</span>
+      <span>Graine {{ experiment.config.seed }} · {{ experiment.config.map_source === 'current' ? 'Carte actuelle' : experiment.config.map_count + ' cartes aléatoires' }}</span>
+      <span>{{ experiment.config.timing_repeats }} exécutions chronométrées par configuration et par carte</span>
+    </div>
+    <progress [value]="experiment.completed" [max]="experiment.total" aria-label="Progression des évaluations"></progress>
+    @if (experiment.error) { <p class="error" role="alert">{{ experiment.error }}</p> }
+
+    <div class="ranking-heading"><h3>Quels algorithmes sont les plus efficaces ?</h3><span>{{ running() ? 'Classement provisoire' : 'Classement sur ces cartes' }}</span></div>
+    <p class="help">Meilleure configuration évaluée de chaque algorithme, selon le taux de réussite puis le score global. Les scores vont de 0 à 100 : plus haut = mieux.</p>
+    <p class="help">Pondérations appliquées — temps {{ experiment.config.score_weights.time }}, mémoire {{ experiment.config.score_weights.memory }}, qualité {{ experiment.config.score_weights.quality }}, nœuds {{ experiment.config.score_weights.expanded }}.</p>
+    <ol class="algorithm-ranking">
+      @for (algorithm of experiment.algorithm_summaries; track algorithm.algorithm) {
+        <li>
+          <div class="ranking-title"><h4>{{ $index + 1 }}. {{ algorithm.label }}</h4><strong>{{ algorithm.best.score | number:'1.1-1' }}<small> / 100</small></strong></div>
+          <meter min="0" max="100" [value]="algorithm.best.score" [attr.aria-label]="'Score global ' + algorithm.label"></meter>
+          <p class="help">@if (algorithm.algorithm === 'astar') { {{ algorithm.best.heuristic }} · w={{ algorithm.best.heuristic_weight | number:'1.0-4' }} · {{ methodLabel(algorithm.best.method) }} } @else { Référence de coût optimal }</p>
+          <dl class="ranking-metrics">
+            <div><dt>Temps lissé moyen</dt><dd>{{ algorithm.best.time_ms | number:'1.0-3' }} ms</dd></div>
+            <div><dt>Pic mémoire moyen</dt><dd>{{ algorithm.best.memory_kib | number:'1.0-2' }} KiB</dd></div>
+            <div><dt>Réussite</dt><dd>{{ algorithm.best.success_rate * 100 | number:'1.0-0' }} %</dd></div>
+            <div><dt>Écart optimal</dt><dd>{{ algorithm.best.gap_percent === null ? '—' : (algorithm.best.gap_percent | number:'1.0-2') + ' %' }}</dd></div>
+          </dl>
+          <p class="help">{{ algorithm.best.timing_runs - algorithm.best.timing_outliers }} / {{ algorithm.best.timing_runs }} mesures conservées · {{ algorithm.best.timing_outliers }} écartées.</p>
+          <p class="score-parts">Scores /100 · temps {{ algorithm.best.score_time | number:'1.0-1' }} · mémoire {{ algorithm.best.score_memory | number:'1.0-1' }} · qualité {{ algorithm.best.score_quality | number:'1.0-1' }} · nœuds {{ algorithm.best.score_expanded | number:'1.0-1' }}</p>
+        </li>
+      } @empty { <li class="help">Le classement apparaîtra après la première configuration entièrement évaluée.</li> }
+    </ol>
+    <details class="scoring-details"><summary>Comment le score est-il calculé ?</summary>
+      <p class="help">Sur chaque carte, temps/mémoire/nœuds : score = 100 × valeur Dijkstra / (valeur Dijkstra + valeur mesurée). Dijkstra vaut donc 50 pour ces dimensions ; une valeur supérieure à 50 signifie un gain par rapport à Dijkstra.</p>
+      <p class="help">Qualité : 100 × coût optimal / coût trouvé, plafonné à 100. Un échec vaut 0 sur toutes les dimensions. Le score global est leur moyenne pondérée, puis la moyenne sur toutes les cartes. Les scores restent comparables pendant l’expérience car la référence est fixe.</p>
+    </details>
+
+    <div class="method-summaries">
+      @for (method of experiment.method_summaries; track method.method) {
+        <article><h3>{{ methodLabel(method.method) }}</h3>
+          <p>{{ method.configurations }} configurations · {{ method.evaluations }} évaluations</p>
+          <p>{{ method.search_ms | number:'1.0-2' }} ms de recherche cumulée</p>
+          <p>{{ method.benchmark_ms | number:'1.0-2' }} ms de benchmark (répétitions et mémoire)</p>
+          <p>{{ method.timing_runs }} mesures de temps · {{ method.timing_outliers }} écartées</p>
+          @if (method.best; as best) {
+            <p>Meilleur : {{ best.heuristic }}, w={{ best.heuristic_weight | number:'1.0-4' }}<br>
+              {{ metricNames[experiment.config.objective] }} : {{ best[experiment.config.objective] === null ? '—' : (best[experiment.config.objective] | number:'1.0-3') }} · réussite {{ best.success_rate * 100 | number:'1.0-0' }}%</p>
+          }
+        </article>
+      }
+    </div>
+    <div class="chart-heading"><h3>{{ chartMode() === 'weight' ? 'f(w) — ' + metricNames[chartMetric()] + ' en fonction du poids w' : chartMode() === 'trial' ? 'Résultat de chaque essai' : 'Meilleur résultat jusqu’à chaque essai' }}</h3></div>
+    @if (experiment.config.weight_space === 'range') {
+      <dl class="range-summary" aria-label="Intervalle utilisé pour cette expérience">
+        <div><dt>A · début</dt><dd>{{ experiment.config.weight_start | number:'1.0-6' }}</dd></div>
+        <div><dt>B · fin</dt><dd>{{ experiment.config.weight_end | number:'1.0-6' }}</dd></div>
+        <div><dt>C · pas</dt><dd>{{ experiment.config.weight_step | number:'1.0-6' }}</dd></div>
+      </dl>
+      <p class="help">{{ experiment.weight_values.length }} poids dans la grille de recherche. Ces valeurs A, B, C correspondent à l’expérience affichée.</p>
+    }
+    <div class="chart-controls">
+      <label>Affichage<select [ngModel]="chartMode()" (ngModelChange)="chartMode.set($event)">
+        <option value="weight">En fonction du poids w</option><option value="trial">Chaque essai</option><option value="best">Meilleur jusque-là</option>
+      </select></label>
+      <label>Métrique<select [ngModel]="chartMetric()" (ngModelChange)="chartMetric.set($event)">
+        @for (metric of columns; track metric) { <option [value]="metric">{{ metricNames[metric] }}</option> }
+      </select></label>
+    </div>
+    @if (chart(); as plot) {
+      <svg viewBox="0 0 600 210" role="img" [attr.aria-label]="metricNames[chartMetric()] + (chartMode() === 'weight' ? ' en fonction du poids w' : chartMode() === 'trial' ? ' par essai' : ' : meilleur résultat jusque-là')">
+        <line x1="70" y1="28" x2="70" y2="160" class="axis"/><line x1="70" y1="160" x2="576" y2="160" class="axis"/>
+        <line x1="70" y1="28" x2="576" y2="28" class="guide"/><line x1="70" y1="94" x2="576" y2="94" class="guide"/>
+        @if (plot.referenceY !== null) { <line x1="70" [attr.y1]="plot.referenceY" x2="576" [attr.y2]="plot.referenceY" class="reference-line"><title>Référence Dijkstra : {{ plot.reference | number:'1.0-3' }}</title></line> }
+        <text x="62" y="32" text-anchor="end">{{ plot.max | number:'1.0-3' }}</text><text x="62" y="98" text-anchor="end">{{ plot.middle | number:'1.0-3' }}</text><text x="62" y="164" text-anchor="end">{{ plot.min | number:'1.0-3' }}</text>
+        <text x="70" y="180">{{ plot.xMin | number:'1.0-3' }}</text><text x="323" y="180" text-anchor="middle">{{ plot.xMiddle | number:'1.0-3' }}</text><text x="576" y="180" text-anchor="end">{{ plot.xMax | number:'1.0-3' }}</text><text x="323" y="202" text-anchor="middle">{{ chartMode() === 'weight' ? 'Poids de l’heuristique w testé' : 'Configurations évaluées' }}</text>
+        @for (series of plot.series; track series.key) {
+          <path [attr.d]="series.path" fill="none" [style.stroke]="series.color" [class.grid-line]="series.method === 'grid'" [class.random-line]="series.method === 'random'"/>
+          @for (point of series.points; track $index) {
+            @if (series.method === 'random') {
+              <rect [attr.x]="point.x - 4" [attr.y]="point.y - 4" width="8" height="8" class="random-dot" [style.stroke]="series.color"><title>{{ point.label }}</title></rect>
+            } @else {
+              <circle [attr.cx]="point.x" [attr.cy]="point.y" r="2.5" class="grid-dot" [style.fill]="series.color"><title>{{ point.label }}</title></circle>
+            }
+          }
+        }
+      </svg>
+      <div class="legend">
+        @for (series of plot.series; track series.key) { <span [style.color]="series.color">{{ series.method === 'grid' ? '● ━' : '□ ┄' }} {{ series.name }}</span> }
+        @if (plot.reference !== null) { <span>┈ Dijkstra : {{ plot.reference | number:'1.0-3' }}</span> }
+      </div>
+      @if (plot.flat) {
+        <p class="help plateau" role="status">{{ chartMode() === 'best' ? 'Le meilleur résultat est identique dès le premier essai : ce plateau est normal.' : 'Tous les essais affichent la même valeur pour cette métrique.' }} Essayez « Nœuds développés » ou « Temps lissé (ms) » pour comparer les autres différences.</p>
+      }
+      <p class="help">{{ metricNames[chartMetric()] }} {{ higherIsBetter(chartMetric()) ? '· plus haut = mieux.' : '· plus bas = mieux.' }} Échelle verticale ajustée aux valeurs observées. Survolez les points pour afficher les paramètres. Les essais sans valeur interrompent la ligne.</p>
+      @if (chartMode() === 'weight') { <p class="help">Ici f(w) est le résultat mesuré pour le poids w : {{ metricNames[chartMetric()] }}. Le score interne d’A* reste g + w × h.</p> }
+      @if (chartMode() === 'weight') { <p class="help">Une couleur par heuristique. Les points sont placés aux poids réellement testés et reliés par poids croissant pour chaque méthode ; les segments ne représentent pas des mesures intermédiaires. Chaque point est la moyenne sur les mêmes cartes.</p> }
+      @if (chartMode() === 'best') { <p class="help">Le meilleur réglage privilégie d’abord la réussite, puis la métrique affichée. Une hausse du taux de réussite peut donc dégrader la métrique affichée.</p> }
+    } @else {
+      <p class="help">Aucune valeur disponible pour cette métrique. Attendez les essais ou sélectionnez une autre métrique.</p>
+    }
+
+    <div class="results-heading"><h3>Configurations comparées</h3><div class="exports"><a href="/api/agent/experiments/export?format=csv" download>Exporter CSV</a><a href="/api/agent/experiments/export?format=json" download>Exporter JSON</a></div></div>
+    <p class="help">Moyennes sur les mêmes cartes. Temps lissé = moyenne des répétitions après filtrage, puis moyenne sur les cartes ; temps brut = moyenne sans filtrage. Le classement et les scores utilisent le temps lissé. Coût, écart et longueur : réussites uniquement ; autres métriques : tous les essais. Mémoire = moyenne des pics Python par carte.</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Résultats comparatifs">
+      <table>
+        <thead><tr><th scope="col">Recherche / essai</th><th scope="col">Configuration</th>
+          @for (metric of columns; track metric) {
+            <th scope="col" [attr.aria-sort]="sort() === metric ? (descending() ? 'descending' : 'ascending') : 'none'"><button type="button" (click)="sortBy(metric)">{{ metricNames[metric] }} @if (sort() === metric) { {{ descending() ? '↓' : '↑' }} }</button></th>
+          }
+        </tr></thead>
+        <tbody>
+          @for (row of rows(); track row.method + ':' + row.trial) {
+            <tr [class.baseline]="row.method === 'baseline'">
+              <td>{{ methodLabel(row.method) }} @if (row.trial) { <span class="trial">#{{ row.trial }}</span> }</td>
+              <td class="config">{{ row.algorithm === 'astar' ? 'A*' : 'Dijkstra' }} @if (row.algorithm === 'astar') { <small>{{ row.heuristic }} · w={{ row.heuristic_weight | number:'1.0-4' }}</small> }</td>
+              @for (metric of columns; track metric) {
+                <td class="numeric">@if (row[metric] === null) { — } @else if (metric === 'success_rate') { {{ row.success_rate * 100 | number:'1.0-0' }}% } @else { {{ row[metric] | number:'1.0-3' }} }
+                  @if (metric === 'time_ms') { <small class="timing-count">{{ row.timing_runs - row.timing_outliers }}/{{ row.timing_runs }} conservées</small> }
+                </td>
+              }
+            </tr>
+          } @empty { <tr><td [attr.colspan]="columns.length + 2" class="empty">Les résultats apparaîtront après la première configuration évaluée.</td></tr> }
+        </tbody>
+      </table>
+    </div>
+    <p class="help">L’expérience la plus récente est conservée en mémoire jusqu’au redémarrage du service. Exportez-la avant d’en lancer une nouvelle.</p>
+  } @else {
+    <p class="empty">Choisissez un espace de paramètres et lancez une expérience pour comparer les résultats.</p>
+  }
+</section>

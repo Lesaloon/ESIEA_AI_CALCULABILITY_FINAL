@@ -24,6 +24,18 @@ class EnvironmentService(rpc.EnvironmentServicer):
     async def StartRun(self, request, context):
         return await self.execute(context, lambda: self.sim.start_run(request.request_id), pb.RunState())
 
+    async def GetScenarioSnapshot(self, request, context):
+        def operation():
+            if self.sim.start is None or self.sim.goal is None:
+                raise SimulationError('Configure both start and goal in Environment first', 422)
+            grid = self.sim._grid()
+            return dict(grid=dict(width=grid.width, height=grid.height, walkable_cells=[
+                dict(position=dict(x=x, y=y), weight=data['weight'])
+                for (x, y), data in sorted(grid.graph.nodes(data=True))]),
+                start=dict(x=self.sim.start[0], y=self.sim.start[1]),
+                goal=dict(x=self.sim.goal[0], y=self.sim.goal[1]))
+        return await self.execute(context, operation, pb.ScenarioSnapshot())
+
     async def Observe(self, request, context):
         def operation():
             self.sim.require_run(request.run_id)

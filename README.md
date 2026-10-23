@@ -17,6 +17,10 @@ See [the student agent guide](docs/agent.md) for extension interfaces, turn
 semantics, distance metrics, and the selectable Dijkstra and A* algorithms.
 See [the class diagrams](docs/class-diagrams.md) for the functional environment
 and agent class relationships.
+See [the experiment guide](docs/experiments.md) for Grid Search, Random Search,
+weighted A*, random maps, comparison metrics and CSV/JSON exports.
+See [the French optimization summary](docs/synthese-optimisation-w.md) for the
+group's experiments, lessons learned and final submission on the `guillian` branch.
 
 ## Application requirements
 
@@ -130,6 +134,20 @@ after installing `agent/requirements.txt`. The agent knows the complete frozen m
 and follows its computed route without discovery moves. Dijkstra uses accumulated
 cost alone; A* receives the selected heuristic. Switching tabs preserves shared state.
 Use Left/Right arrows or Home/End to navigate the tabs with a keyboard.
+
+The **Expériences** tab compares A* heuristics and heuristic weights using Grid
+Search and Random Search, with Dijkstra as the optimal-cost reference. Evaluate
+weights from **A (start), B (end), C (step)** or a custom list and plot their
+cost, expansions or runtime against `w`. Evaluate
+the current scenario or seeded random maps, track progress, cancel, compare
+results and export CSV/JSON. All configurations use the same frozen maps.
+An efficiency leaderboard compares each algorithm's best tested configuration
+using adjustable time, Python peak-memory, path-quality and expansion scores.
+Timing defaults to three runs per configuration and map, with outlier filtering
+and a mean of the retained samples; raw samples remain exportable.
+Peak memory is measured separately in an
+isolated worker. Scores can be recalculated without rerunning the searches.
+Only the latest experiment is kept in memory; export it before starting another.
 
 In **Obstacles** mode, hold the left mouse button
 and drag: start on an empty cell to paint obstacles, or on an obstacle to erase.

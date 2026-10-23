@@ -16,5 +16,5 @@ class Algorithm:
 
 ALGORITHMS = {
     'dijkstra': Algorithm('Dijkstra', 'Minimum-cost search using g; heuristic is always zero.', Dijkstra),
-    'astar': Algorithm('A*', 'Weighted search using g + h with the selected heuristic.', AStar),
+    'astar': Algorithm('A*', 'Weighted search using g + w × h with the selected heuristic.', AStar),
 }
